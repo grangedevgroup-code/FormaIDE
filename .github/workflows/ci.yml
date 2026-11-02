@@ -94,7 +94,7 @@ jobs:
       - if: runner.os != 'macOS'
         name: Android platform
         shell: bash
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager$([ "$RUNNER_OS" = Windows ] && echo .bat)" "platforms;android-37" "build-tools;37.0.0" > /dev/null
+        run: (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager$([ "$RUNNER_OS" = Windows ] && echo .bat)" "platforms;android-37.0" "build-tools;37.0.0" > /dev/null
       - run: pip install ninja PySide6
       - if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
