@@ -20,6 +20,7 @@ void configure(GitClient& client)
     ASSERT_TRUE(client.run({"config", "user.name", "Test"}).ok());
     ASSERT_TRUE(client.run({"config", "user.email", "test@example.com"}).ok());
     ASSERT_TRUE(client.run({"config", "commit.gpgsign", "false"}).ok());
+    ASSERT_TRUE(client.run({"config", "core.autocrlf", "false"}).ok());
 }
 
 }
