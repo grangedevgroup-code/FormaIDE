@@ -71,3 +71,5 @@ set_target_properties(FormaIDE PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}")
 
 install(TARGETS FormaIDE BUNDLE DESTINATION . RUNTIME DESTINATION bin)
+
+add_subdirectory("${PROJECT_SOURCE_DIR}/tools/iconbake" "${CMAKE_BINARY_DIR}/tools/iconbake")
