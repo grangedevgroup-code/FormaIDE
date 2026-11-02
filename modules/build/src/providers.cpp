@@ -567,6 +567,8 @@ void registerBuiltinBuildProviders(BuildSystemRegistry& registry)
        "build":[{"label":"Build","command":["cabal","build"]}],"run":["cabal","run"],"artifacts":["dist-newstyle"]},
       {"id":"python","label":"Python","markers":["pyproject.toml","requirements.txt","setup.py"],"tools":["python"],
        "build":[{"label":"Check syntax","command":["python","-m","compileall","-q","."]}],"run":["python","main.py"],"artifacts":[]},
+      {"id":"static","label":"Static site","markers":["index.html"],"tools":["python"],
+       "build":[],"run":["python","-m","http.server","5173"],"artifacts":["."]},
       {"id":"bundler","label":"Bundler","markers":["Gemfile"],"tools":["ruby"],
        "build":[{"label":"Install gems","command":["bundle","install"]}],"run":["bundle","exec","ruby","main.rb"],"artifacts":[]},
       {"id":"composer","label":"Composer","markers":["composer.json"],"tools":["php"],
