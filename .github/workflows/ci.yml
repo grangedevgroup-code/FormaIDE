@@ -72,6 +72,6 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install ninja
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: mymindstorm/setup-emsdk@v16
       - run: emcmake cmake --preset web-core
       - run: cmake --build --preset web-core --parallel
