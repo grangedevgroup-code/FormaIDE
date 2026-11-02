@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QContextMenuEvent>
 #include <QFontMetricsF>
 #include <QHBoxLayout>

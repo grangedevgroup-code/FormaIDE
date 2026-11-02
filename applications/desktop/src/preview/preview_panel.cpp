@@ -108,7 +108,7 @@ void PreviewPanel::refreshChoices()
     screen_->clear();
     if (controller_->hasProject()) {
         for (const auto& screen : controller_->model()->screens)
-            screen_->addItem(toQ(screen.name), toQ(screen.root.id));
+            screen_->addItem(toQ(screen.root.name.empty() ? screen.root.id : screen.root.name), toQ(screen.root.id));
     }
     int index = screen_->findData(previous.isEmpty() ? controller_->currentScreen() : previous);
     if (index >= 0)

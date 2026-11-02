@@ -50,7 +50,7 @@ target_link_libraries(forma_desktop PUBLIC
     forma_scintilla forma_lexilla
     forma::project forma::generators forma::resources forma::canvas forma::design forma::layout
     forma::code_editor forma::terminal forma::version_control forma::lsp forma::debugger forma::ai forma::plugins forma::assets)
-target_compile_definitions(forma_desktop PUBLIC QT_NO_KEYWORDS FORMA_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(forma_desktop PUBLIC FORMA_VERSION="${PROJECT_VERSION}")
 forma_apply_warnings(forma_desktop)
 
 if(WIN32 AND EXISTS "${PROJECT_SOURCE_DIR}/packaging/windows/formaide.rc")
