@@ -1,0 +1,65 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "FORMA_BUILD_DESKTOP": "ON",
+        "FORMA_BUILD_CLI": "ON",
+        "FORMA_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "dev",
+      "displayName": "Development build",
+      "inherits": "base"
+    },
+    {
+      "name": "release",
+      "displayName": "Release build",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "FORMA_BUILD_TESTS": "OFF" }
+    },
+    {
+      "name": "headless",
+      "displayName": "Core libraries and CLI, no Qt",
+      "inherits": "base",
+      "cacheVariables": { "FORMA_BUILD_DESKTOP": "OFF" }
+    },
+    {
+      "name": "web-core",
+      "displayName": "Core libraries compiled to WebAssembly",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "FORMA_BUILD_DESKTOP": "OFF",
+        "FORMA_BUILD_CLI": "OFF",
+        "FORMA_BUILD_TESTS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "headless", "configurePreset": "headless" },
+    { "name": "web-core", "configurePreset": "web-core" }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": { "outputOnFailure": true },
+      "environment": { "QT_QPA_PLATFORM": "offscreen" }
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
