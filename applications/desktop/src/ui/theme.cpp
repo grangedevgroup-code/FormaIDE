@@ -238,6 +238,7 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
 QLineEdit[role="search"] { padding-left: 6px; }
 QTabBar::close-button { image: url(@CLOSE@); subcontrol-position: right; width: 12px; height: 12px; margin: 2px; border-radius: 3px; }
 QTabBar::close-button:hover { background: %11; }
+QToolBar#railToolbar { padding: 0; margin: 0; border: none; spacing: 0; }
 QComboBox::drop-down { border: none; width: 18px; }
 QComboBox::down-arrow { image: url(@CHEVRON@); width: 10px; height: 10px; margin-right: 6px; }
 QComboBox QAbstractItemView { background: %5; border: 1px solid %6; selection-background-color: %13; selection-color: %14; outline: 0; }

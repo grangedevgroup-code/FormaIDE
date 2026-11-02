@@ -82,6 +82,9 @@ public:
     void runInNewTerminal(const QString& command);
     int sessionCount() const;
 
+protected:
+    void showEvent(QShowEvent* event) override;
+
 private:
     ProjectController* controller_;
     QTabWidget* tabs_;

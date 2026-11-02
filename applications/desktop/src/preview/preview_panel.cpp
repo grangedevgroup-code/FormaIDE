@@ -34,6 +34,10 @@ PreviewPanel::PreviewPanel(ProjectController* controller, QWidget* parent) : QWi
     device_->addItem(tr("Design size"), QString());
     for (const auto& preset : design::devicePresets())
         device_->addItem(QStringLiteral("%1 (%2 x %3)").arg(toQ(preset.name)).arg(preset.width).arg(preset.height), toQ(preset.id));
+    device_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    device_->setMinimumContentsLength(14);
+    screen_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    screen_->setMinimumContentsLength(10);
     bar->addWidget(device_);
     bar->addWidget(new QLabel(tr("Appearance"), header));
     appearance_ = new QComboBox(header);
@@ -46,10 +50,10 @@ PreviewPanel::PreviewPanel(ProjectController* controller, QWidget* parent) : QWi
     zoom_ = new QSlider(Qt::Horizontal, header);
     zoom_->setRange(25, 200);
     zoom_->setValue(100);
-    zoom_->setFixedWidth(120);
+    zoom_->setFixedWidth(90);
     bar->addWidget(zoom_);
     bar->addStretch(1);
-    run_ = new QPushButton(tr("Build and run the real app"), header);
+    run_ = new QPushButton(tr("Run real app"), header);
     run_->setObjectName(QStringLiteral("previewRun"));
     run_->setProperty("role", "primary");
     bar->addWidget(run_);

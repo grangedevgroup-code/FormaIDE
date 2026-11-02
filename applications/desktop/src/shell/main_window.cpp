@@ -243,6 +243,7 @@ void MainWindow::buildToolbar()
     target_ = new QComboBox(toolbar_);
     target_->setObjectName(QStringLiteral("toolbarTarget"));
     target_->setToolTip(tr("What to build"));
+    target_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     toolbar_->addWidget(target_);
     configuration_ = new QComboBox(toolbar_);
     configuration_->setObjectName(QStringLiteral("toolbarConfiguration"));
@@ -417,6 +418,8 @@ void MainWindow::buildStatusBar()
 
 void MainWindow::wireController()
 {
+    for (const auto& [id, dock] : docks_)
+        connect(dock, &QDockWidget::dockLocationChanged, this, &MainWindow::updateDockTitles);
     connect(controller_, &ProjectController::projectOpened, this, &MainWindow::onProjectOpened);
     connect(controller_, &ProjectController::projectClosed, this, &MainWindow::onProjectClosed);
     connect(controller_, &ProjectController::statusMessage, statusText_, &QLabel::setText);
@@ -593,6 +596,34 @@ void MainWindow::showWorkspace(const QString& id)
             docks_[QStringLiteral("components")]->raise();
         }
         break;
+    }
+    updateDockTitles();
+}
+
+void MainWindow::showDock(const QString& id)
+{
+    auto it = docks_.find(id);
+    if (it == docks_.end())
+        return;
+    it->second->show();
+    it->second->raise();
+    updateDockTitles();
+}
+
+void MainWindow::updateDockTitles()
+{
+    for (const auto& [id, dock] : docks_) {
+        bool tabbed = false;
+        for (QDockWidget* other : tabifiedDockWidgets(dock))
+            tabbed = tabbed || !other->isHidden();
+        bool hideTitle = tabbed || id == QStringLiteral("screens");
+        if (hideTitle && dock->titleBarWidget() == nullptr)
+            dock->setTitleBarWidget(new QWidget(dock));
+        else if (!hideTitle && dock->titleBarWidget() != nullptr) {
+            QWidget* old = dock->titleBarWidget();
+            dock->setTitleBarWidget(nullptr);
+            delete old;
+        }
     }
 }
 

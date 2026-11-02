@@ -522,6 +522,13 @@ TerminalPanel::TerminalPanel(ProjectController* controller, QWidget* parent) : Q
     });
 }
 
+void TerminalPanel::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    if (tabs_->count() == 0 && controller_->hasProject())
+        newSession();
+}
+
 TerminalWidget* TerminalPanel::current() const
 {
     return qobject_cast<TerminalWidget*>(tabs_->currentWidget());

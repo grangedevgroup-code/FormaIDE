@@ -274,10 +274,15 @@ TEST_F(UiFixture, TerminalRunsACommand)
 {
     createProject(QStringLiteral("Term App"), QStringLiteral("blank"));
     window_->showWorkspace(QStringLiteral("code"));
-    TerminalWidget* terminal = window_->terminal()->newSession();
+    window_->showDock(QStringLiteral("terminal"));
+    settle();
+    ASSERT_EQ(window_->terminal()->sessionCount(), 1);
+    TerminalWidget* terminal = window_->terminal()->current();
     ASSERT_NE(terminal, nullptr);
+    capture(*window_, QStringLiteral("terminal-before"));
     terminal->runCommand(QStringLiteral("echo forma-terminal-marker"));
-    bool seen = waitFor([&] { return terminal->visibleText().count(QStringLiteral("forma-terminal-marker")) >= 2; }, 20000);
+    bool seen = waitFor([&] { return terminal->visibleText().remove(QLatin1Char('\n')).count(QStringLiteral("forma-terminal-marker")) >= 2; }, 20000);
+    capture(*window_, QStringLiteral("terminal-") + (Theme::instance().isDark() ? QStringLiteral("dark") : QStringLiteral("light")));
     EXPECT_TRUE(seen) << fromQ(terminal->visibleText());
     terminal->stop();
 }

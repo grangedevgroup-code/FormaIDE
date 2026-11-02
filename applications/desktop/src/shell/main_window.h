@@ -48,6 +48,7 @@ public:
     void showWorkspace(const QString& id);
     QString workspace() const { return workspace_; }
     bool openProjectFolder(const QString& path);
+    void showDock(const QString& id);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -87,6 +88,7 @@ private:
     void restoreLayout();
     void checkRecovery(int buffers, bool design);
     void applyEditorSettings();
+    void updateDockTitles();
 
     ProjectController* controller_;
     QStackedWidget* pages_;
