@@ -138,7 +138,6 @@ CodeEditor::CodeEditor(QWidget* parent) : QWidget(parent)
     editor_->send(SCI_SETCARETLINEFRAME, 0);
     editor_->send(SCI_SETCARETWIDTH, 2);
     editor_->send(SCI_SETMOUSEDWELLTIME, 500);
-    editor_->send(SCI_SETBUFFEREDDRAW, 1);
     editor_->send(SCI_SETLAYOUTCACHE, SC_CACHE_PAGE);
     editor_->send(SCI_SETIDLESTYLING, SC_IDLESTYLING_TOVISIBLE);
     editor_->send(SCI_AUTOCSETIGNORECASE, 1);
