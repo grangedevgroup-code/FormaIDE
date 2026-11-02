@@ -1,0 +1,20 @@
+function(forma_apply_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /utf-8 /permissive- /Zc:__cplusplus /EHsc /wd4251 /wd4275 /wd4324)
+        target_compile_definitions(${target} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE _CRT_SECURE_NO_WARNINGS)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers)
+    endif()
+endfunction()
+
+function(forma_add_module name)
+    cmake_parse_arguments(ARG "" "" "PUBLIC_DEPS;PRIVATE_DEPS;EXTRA_SOURCES" ${ARGN})
+    file(GLOB sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+    add_library(forma_${name} STATIC ${sources} ${ARG_EXTRA_SOURCES})
+    add_library(forma::${name} ALIAS forma_${name})
+    target_include_directories(forma_${name}
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(forma_${name} PUBLIC ${ARG_PUBLIC_DEPS} PRIVATE ${ARG_PRIVATE_DEPS})
+    forma_apply_warnings(forma_${name})
+endfunction()
