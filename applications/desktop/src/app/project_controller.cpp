@@ -508,7 +508,7 @@ void ProjectController::onFilesChangedExternally(const std::vector<FileChange>& 
         if (path.startsWith(QStringLiteral(".forma/")) || path.startsWith(QStringLiteral(".git/")) || path.startsWith(QStringLiteral("build/")))
             continue;
         pendingChanges_ << path;
-        if (change.kind == FileChangeKind::Modified)
+        if (change.kind != FileChangeKind::Removed)
             Q_EMIT externalFileChanged(path);
     }
     if (!pendingChanges_.isEmpty())
