@@ -16,22 +16,6 @@ std::string py(const std::string& value)
     return "\"" + escapeLiteral(value, LiteralStyle::Python) + "\"";
 }
 
-std::string actionLines(const ApplicationModel& model, const std::string& actionId)
-{
-    std::string out;
-    for (const auto& action : resolveAction(model, actionId)) {
-        if (action.kind == "navigate")
-            out += "app.navigate(" + py(action.target) + "); ";
-        else if (action.kind == "back")
-            out += "app.back(); ";
-        else if (action.kind == "openUrl")
-            out += "webbrowser.open(" + py(action.target) + "); ";
-        else if (!action.handler.empty())
-            out += "handlers." + text::toSnakeCase(action.handler) + "(app); ";
-    }
-    return out;
-}
-
 std::string lambdaFor(const ApplicationModel& model, const std::string& actionId)
 {
     std::vector<std::string> calls;

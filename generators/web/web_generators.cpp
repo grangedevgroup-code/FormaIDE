@@ -590,6 +590,7 @@ public:
         result.files.push_back(plainFile("index.html", "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>" + escapeLiteral(name, LiteralStyle::Html) + "</title>\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"module\" src=\"/src/main.tsx\"></script>\n</body>\n</html>\n"));
         result.files.push_back(plainFile("src/main.tsx", "import { StrictMode } from \"react\";\nimport { createRoot } from \"react-dom/client\";\nimport { App } from \"./App\";\nimport \"./styles.css\";\n\ncreateRoot(document.getElementById(\"root\")!).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n);\n"));
         result.files.push_back(stylesFile(model, "src/styles.css"));
+        result.files.push_back(plainFile("src/vite-env.d.ts", "/// <reference types=\"vite/client\" />\n"));
 
         CodeWriter context("  ");
         context.line("export interface AppApi {");
