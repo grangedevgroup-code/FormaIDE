@@ -63,6 +63,49 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build/dev --output-on-failure --timeout 900
 
+  generated-projects:
+    name: Generated projects (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            templates: web-static web-react windows-wpf python-tk python-qt android-compose
+          - os: ubuntu-24.04
+            templates: web-static web-react python-tk python-qt android-compose
+          - os: macos-26
+            templates: web-static web-react python-tk python-qt apple-swiftui
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.8.2"
+      - if: runner.os != 'macOS'
+        name: Android platform
+        shell: bash
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager$([ "$RUNNER_OS" = Windows ] && echo .bat)" "platforms;android-37" "build-tools;37.0.0" > /dev/null
+      - run: pip install ninja PySide6
+      - if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - run: cmake --preset headless
+      - run: cmake --build --preset headless --parallel --target forma
+      - name: Build generated projects
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tests/toolchain/run_generators.py build/headless/bin/forma "$RUNNER_TEMP/generated" ${{ matrix.templates }}
+
   web-core:
     name: Core compiled to WebAssembly
     runs-on: ubuntu-24.04

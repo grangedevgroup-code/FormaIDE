@@ -236,7 +236,7 @@ GeneratedFile stylesFile(const ApplicationModel& model, const std::string& path)
     w.line("html, body, #root { height: 100%; margin: 0; }");
     w.line("body { font-family: \"Segoe UI\", system-ui, -apple-system, sans-serif; background: " + resolveColor(model, "$color.background", "#FFFFFF") + "; }");
     w.line(".screen { min-height: 100%; }");
-    w.line(".screen[hidden] { display: none; }");
+    w.line(".screen[hidden] { display: none !important; }");
     w.line("button, input, select { font: inherit; }");
     w.line("p, ul { margin: 0; }");
     w.line("ul { padding-left: 20px; }");

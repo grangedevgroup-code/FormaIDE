@@ -48,6 +48,14 @@ for template in wanted:
     project = work / name
     built = subprocess.run([forma, "build", str(project)], capture_output=True, text=True, errors="replace")
     missing = [path for path in EXPECT.get(template, []) if not (project / path).exists()]
+    if built.returncode == 0 and template == "python-qt":
+        check = "import sys; sys.path.insert(0, '.'); from PySide6.QtWidgets import QApplication; a = QApplication([]); import main; w = main.App(); w.show(); a.processEvents(); print('window ok')"
+        env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+        ran = subprocess.run([sys.executable, "-c", check], cwd=project, capture_output=True, text=True, env=env)
+        if ran.returncode != 0:
+            print(ran.stdout, ran.stderr)
+            failures.append(template)
+            continue
     if built.returncode != 0 or missing:
         print(built.stdout[-6000:])
         print(built.stderr[-3000:])
