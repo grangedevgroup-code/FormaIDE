@@ -693,6 +693,12 @@ void InspectorPanel::addNumberRow(QFormLayout* form, const QString& label, const
 {
     auto* spin = new QDoubleSpinBox(content_);
     spin->setObjectName(toQ("field_" + key));
+    bool optional = fallback <= -999999;
+    if (optional) {
+        minimum = -100000;
+        fallback = minimum;
+        spin->setSpecialValueText(QStringLiteral(" "));
+    }
     spin->setRange(minimum, maximum);
     spin->setDecimals(2);
     spin->setKeyboardTracking(false);
