@@ -119,6 +119,7 @@ private:
     QByteArray pendingState_;
     QButtonGroup* railGroup_;
     QToolBar* toolbar_;
+    QToolBar* railBar_;
     QLabel* projectLabel_;
     QComboBox* target_;
     QComboBox* configuration_;

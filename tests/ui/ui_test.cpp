@@ -162,6 +162,7 @@ TEST_F(UiFixture, WorkspaceTourShowsTheRightPanels)
     ASSERT_TRUE(controller->hasProject());
     EXPECT_EQ(window_->workspace(), QStringLiteral("design"));
     EXPECT_TRUE(window_->canvas()->isVisible());
+    EXPECT_LE(window_->width(), 1440);
     QString mode = Theme::instance().isDark() ? QStringLiteral("dark") : QStringLiteral("light");
     controller->regenerate(true);
     ASSERT_TRUE(waitFor([&] { return !controller->lastReport().files.empty(); }, 20000));
@@ -265,6 +266,8 @@ TEST_F(UiFixture, DiskChangesReloadCleanTabsAndNeverOverwriteDirtyOnes)
     auto disk = files.readFile("watched.txt");
     ASSERT_TRUE(disk);
     EXPECT_EQ(*disk, "third\n");
+    editor->setText(QStringLiteral("third\n"));
+    ASSERT_TRUE(window_->editors()->closeAll());
 }
 
 TEST_F(UiFixture, TerminalRunsACommand)
@@ -340,7 +343,8 @@ TEST_F(UiFixture, DesignGenerateEditRegenerateKeepsUserCode)
 
 int main(int argc, char** argv)
 {
-    qputenv("QT_QPA_PLATFORM", "offscreen");
+    if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
+        qputenv("QT_QPA_PLATFORM", "offscreen");
     QTemporaryDir home;
     qputenv("FORMA_CONFIG_HOME", home.filePath(QStringLiteral("config")).toUtf8());
     qputenv("FORMA_DATA_HOME", home.filePath(QStringLiteral("data")).toUtf8());

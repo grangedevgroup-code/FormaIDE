@@ -92,6 +92,6 @@ int main(int argc, char** argv)
     icns.append(body);
     writeFile(packaging.filePath(QStringLiteral("macos/FormaIDE.icns")), icns);
     writeFile(packaging.filePath(QStringLiteral("linux/formaide.png")), pngOf(renderer, 512));
-    wideImage(QDir(branding).filePath(QStringLiteral("logo-light.svg")), 1280, 640, QColor(QStringLiteral("#F6F7F9"))).save(QDir(branding).filePath(QStringLiteral("social-preview.png")));
+    wideImage(QDir(branding).filePath(QStringLiteral("logo-light.svg")), 1280, 640, QColor(QStringLiteral("#F6F7F9"))).save(packaging.filePath(QStringLiteral("social-preview.png")));
     return 0;
 }

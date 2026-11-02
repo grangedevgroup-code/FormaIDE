@@ -73,11 +73,17 @@ void MainWindow::buildCentral()
     auto* row = new QHBoxLayout(mainPage_);
     row->setContentsMargins(0, 0, 0, 0);
     row->setSpacing(0);
-    rail_ = new QFrame(mainPage_);
+    rail_ = new QFrame(this);
     rail_->setObjectName(QStringLiteral("workspaceRail"));
     rail_->setProperty("role", "rail");
     rail_->setFixedWidth(68);
-    row->addWidget(rail_);
+    railBar_ = new QToolBar(tr("Workspaces"), this);
+    railBar_->setObjectName(QStringLiteral("railToolbar"));
+    railBar_->setMovable(false);
+    railBar_->setFloatable(false);
+    railBar_->setContentsMargins(0, 0, 0, 0);
+    railBar_->addWidget(rail_);
+    addToolBar(Qt::LeftToolBarArea, railBar_);
     center_ = new QStackedWidget(mainPage_);
     center_->setObjectName(QStringLiteral("workspaceCenter"));
     canvas_ = new CanvasWidget(controller_, center_);
@@ -387,12 +393,14 @@ void MainWindow::buildStatusBar()
 {
     statusText_ = new QLabel(this);
     statusText_->setObjectName(QStringLiteral("statusText"));
+    statusText_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     statusProblems_ = new QLabel(this);
     statusProblems_->setObjectName(QStringLiteral("statusProblems"));
     statusBranch_ = new QLabel(this);
     statusBranch_->setObjectName(QStringLiteral("statusBranch"));
     statusServer_ = new QLabel(this);
     statusServer_->setObjectName(QStringLiteral("statusServer"));
+    statusServer_->setMaximumWidth(320);
     statusCursor_ = new QLabel(this);
     statusLanguage_ = new QLabel(this);
     statusSaved_ = new QLabel(this);
@@ -443,7 +451,10 @@ void MainWindow::wireController()
         statusCursor_->setText(tr("Ln %1, Col %2").arg(line).arg(column));
         statusLanguage_->setText(language);
     });
-    connect(editors_, &EditorArea::serverStatusChanged, statusServer_, &QLabel::setText);
+    connect(editors_, &EditorArea::serverStatusChanged, this, [this](const QString& text) {
+        statusServer_->setText(statusServer_->fontMetrics().elidedText(text, Qt::ElideRight, 310));
+        statusServer_->setToolTip(text);
+    });
     connect(editors_, &EditorArea::referencesFound, this, [this](const QString& title, const std::vector<lsp::Location>& locations) {
         search_->showLocations(title, locations);
         docks_[QStringLiteral("search")]->raise();
@@ -520,6 +531,8 @@ void MainWindow::updateTargets()
 void MainWindow::onProjectOpened()
 {
     pages_->setCurrentWidget(mainPage_);
+    toolbar_->show();
+    railBar_->show();
     updateTitle();
     updateTargets();
     updateActions();
@@ -537,6 +550,8 @@ void MainWindow::onProjectClosed()
     for (const auto& [id, dock] : docks_)
         dock->hide();
     pages_->setCurrentWidget(welcome_);
+    toolbar_->hide();
+    railBar_->hide();
     welcome_->refresh();
     updateTitle();
     updateTargets();

@@ -37,9 +37,13 @@ long toBgr(const QColor& color)
     return color.red() | (color.green() << 8) | (color.blue() << 16);
 }
 
-long toBgra(const QColor& color)
+sptr_t opaqueOver(const QColor& color, const QColor& base)
 {
-    return color.red() | (color.green() << 8) | (color.blue() << 16) | (color.alpha() << 24);
+    double a = color.alphaF();
+    int red = qRound(color.red() * a + base.red() * (1 - a));
+    int green = qRound(color.green() * a + base.green() * (1 - a));
+    int blue = qRound(color.blue() * a + base.blue() * (1 - a));
+    return static_cast<sptr_t>(static_cast<quint32>(red) | (static_cast<quint32>(green) << 8) | (static_cast<quint32>(blue) << 16) | (0xFFu << 24));
 }
 
 const Json& lexerStyles()
@@ -409,12 +413,12 @@ void CodeEditor::applyTheme()
         target->send(SCI_STYLESETBACK, STYLE_DEFAULT, toBgr(c.editor));
         target->send(SCI_STYLECLEARALL);
         target->send(SCI_SETCARETFORE, toBgr(c.text));
-        target->send(SCI_SETSELBACK, 1, toBgr(c.selection));
-        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_BACK, toBgra(c.selection));
-        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_ADDITIONAL_BACK, toBgra(c.selection));
-        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_SECONDARY_BACK, toBgra(c.selection));
-        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_INACTIVE_BACK, toBgra(c.selection));
-        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET_LINE_BACK, toBgra(c.hover));
+        target->send(SCI_SETSELBACK, 1, opaqueOver(c.selection, c.editor) & 0xFFFFFF);
+        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_BACK, opaqueOver(c.selection, c.editor));
+        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_ADDITIONAL_BACK, opaqueOver(c.selection, c.editor));
+        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_SECONDARY_BACK, opaqueOver(c.selection, c.editor));
+        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_SELECTION_INACTIVE_BACK, opaqueOver(c.selection, c.editor));
+        target->send(SCI_SETELEMENTCOLOUR, SC_ELEMENT_CARET_LINE_BACK, opaqueOver(c.hover, c.editor));
         target->send(SCI_SETCARETLINEVISIBLE, 1);
         target->send(SCI_SETWHITESPACEFORE, 1, toBgr(c.textFaint));
         target->send(SCI_STYLESETFORE, STYLE_LINENUMBER, toBgr(c.textFaint));
