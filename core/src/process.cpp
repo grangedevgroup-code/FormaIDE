@@ -811,12 +811,17 @@ std::optional<fs::path> findExecutable(std::string_view name, const std::vector<
 #endif
 
     auto usable = [&](const fs::path& path) {
+#if defined(_WIN32)
+        DWORD attributes = GetFileAttributesW(path.c_str());
+        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+#else
         if (!fs::is_regular_file(path, ec))
             return false;
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(__EMSCRIPTEN__)
         return ::access(path.c_str(), X_OK) == 0;
 #else
         return true;
+#endif
 #endif
     };
 
