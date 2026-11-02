@@ -5,6 +5,7 @@
 
 using namespace forma;
 using namespace forma::git;
+using namespace std::string_literals;
 using forma::testing::TempDir;
 
 namespace {
