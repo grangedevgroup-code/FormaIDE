@@ -578,8 +578,14 @@ void MainWindow::showWorkspace(const QString& id)
             continue;
         workspace.button->setChecked(true);
         center_->setCurrentWidget(workspace.center);
-        for (const auto& [dockId, dock] : docks_)
-            dock->setVisible(workspace.docks.contains(dockId));
+        for (const auto& [dockId, dock] : docks_) {
+            if (!workspace.docks.contains(dockId))
+                dock->hide();
+        }
+        for (const auto& [dockId, dock] : docks_) {
+            if (workspace.docks.contains(dockId))
+                dock->show();
+        }
         std::string saved = AppContext::instance().settings().getString("layout." + fromQ(id));
         if (!saved.empty())
             restoreState(QByteArray::fromBase64(QByteArray::fromStdString(saved)), kLayoutVersion);
