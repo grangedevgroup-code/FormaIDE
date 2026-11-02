@@ -121,14 +121,16 @@ Result<std::unique_ptr<Database>> Database::open(const fs::path& path, const std
         if (code != SQLITE_OK)
             return makeError("db.open", "Cannot open " + paths::toUtf8(path));
         sqlite3_busy_timeout(database->handle_, 3000);
-        auto quick = database->prepare("PRAGMA quick_check");
-        if (quick) {
-            auto row = quick->step();
-            if (!row || !*row || quick->columnText(0) != "ok")
+        {
+            auto quick = database->prepare("PRAGMA quick_check");
+            if (quick) {
+                auto row = quick->step();
+                if (!row || !*row || quick->columnText(0) != "ok")
+                    corrupt = true;
+            } else if (quick.error().message.find("not a database") != std::string::npos
+                       || quick.error().message.find("malformed") != std::string::npos) {
                 corrupt = true;
-        } else if (quick.error().message.find("not a database") != std::string::npos
-                   || quick.error().message.find("malformed") != std::string::npos) {
-            corrupt = true;
+            }
         }
         if (corrupt)
             return makeError("db.corrupt", "The database is damaged: " + paths::toUtf8(path));
