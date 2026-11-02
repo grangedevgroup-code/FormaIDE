@@ -7,25 +7,16 @@ import sys
 lexilla = sys.argv[1]
 output = sys.argv[2]
 
-with open(os.path.join(lexilla, "include", "SciLexer.h"), encoding="latin-1") as f:
-    header = f.read()
+with open(os.path.join(lexilla, "include", "LexicalStyles.iface"), encoding="latin-1") as f:
+    iface = f.read()
 
-sclex_values = {name: int(value) for name, value in re.findall(r"#define (SCLEX_\w+) (\d+)", header)}
-value_names = {}
-for name, value in sclex_values.items():
-    value_names.setdefault(value, name)
+lexer_prefixes = {}
+for line in re.findall(r"^lex \w+=(.*)$", iface, re.M):
+    parts = line.split()
+    clex = parts[0]
+    lexer_prefixes.setdefault(clex, []).extend(parts[1:])
 
-groups = {}
-current = []
-for line in header.splitlines():
-    comment = re.match(r"\s*(?://|/\*)\s*Lexical states? for ([\w, ]+)", line)
-    if comment:
-        current = re.findall(r"SCLEX_\w+", comment.group(1))
-        continue
-    style = re.match(r"#define (SCE_\w+) (\d+)", line)
-    if style and current:
-        for lexer in current:
-            groups.setdefault(lexer, {})[int(style.group(2))] = style.group(1)
+style_values = {name: int(value) for name, value in re.findall(r"^val (SCE_\w+)=(\d+)", iface, re.M)}
 
 RULES = [
     ("error", r"ERROR|BAD|INVALID|UNCLOSED|DELETED|REMOVED|STRINGEOL|UNTERMINATED"),
@@ -40,22 +31,26 @@ RULES = [
     ("operator", r"OPERATOR|_OPER|_OP$|DELIMITER|PUNCT|BRACE|BRACKET|_OP2"),
 ]
 
-categories = {}
-for lexer, styles in groups.items():
+
+def categorize(clex):
     table = {}
-    for number, name in styles.items():
-        for category, pattern in RULES:
-            if re.search(pattern, name):
-                table[number] = category
-                break
-    categories[lexer] = table
+    for prefix in lexer_prefixes.get(clex, []):
+        for name, number in style_values.items():
+            if not name.startswith(prefix) or number in table:
+                continue
+            for category, pattern in RULES:
+                if re.search(pattern, name[len(prefix) - 1:]):
+                    table[number] = category
+                    break
+    return table
+
 
 result = {}
 for path in sorted(glob.glob(os.path.join(lexilla, "lexers", "*.cxx"))):
     with open(path, encoding="latin-1") as f:
         source = f.read()
     for clex, name in re.findall(r"LexerModule\s+\w+\s*\(\s*(SCLEX_\w+)\s*,[^;]*?\"([^\"]+)\"", source, re.S):
-        table = categories.get(clex)
+        table = categorize(clex)
         if table:
             result[name] = {str(k): v for k, v in sorted(table.items())}
 
