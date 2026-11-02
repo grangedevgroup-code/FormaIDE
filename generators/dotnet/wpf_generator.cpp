@@ -50,7 +50,7 @@ public:
                 click = " Click=\"" + name + "_Click\"";
                 clicks_.push_back({name, event->second});
             }
-            w_.line("<Button" + common + font + click + " Padding=\"" + numberText(box.paddingX) + "," + numberText(box.paddingY) + "\"" + brush("Background", box.background.empty() ? "#00FFFFFF" : box.background) + brush("BorderBrush", box.borderColor.empty() ? "#00FFFFFF" : box.borderColor) + " BorderThickness=\"" + numberText(box.borderWidth) + "\">");
+            w_.line("<Button" + common + font + click + " Padding=\"" + numberText(box.paddingX) + "," + numberText(box.paddingY) + "\"" + brush("Background", box.background.empty() ? "#FFFFFF00" : box.background) + brush("BorderBrush", box.borderColor.empty() ? "#FFFFFF00" : box.borderColor) + " BorderThickness=\"" + numberText(box.borderWidth) + "\">");
             w_.indent();
             w_.line("<Button.Resources><Style TargetType=\"Border\"><Setter Property=\"CornerRadius\" Value=\"" + numberText(box.radius) + "\"/></Style></Button.Resources>");
             w_.bound("<TextBlock Text=\"", attr(value), "\"/>", target);

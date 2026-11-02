@@ -94,8 +94,8 @@ void writeRule(CodeWriter& w, const ApplicationModel& model, const Component& c,
         if (!value.empty())
             d.push_back(key + ": " + value + ";");
     };
-    std::string width = cssSize(c.width);
-    std::string height = cssSize(c.height);
+    std::string width = parent == nullptr ? std::string() : cssSize(c.width);
+    std::string height = parent == nullptr ? std::string() : cssSize(c.height);
     bool parentRow = parent != nullptr && (parent->layout.kind == LayoutKind::Horizontal || parent->layout.kind == LayoutKind::Flex);
     bool parentColumn = parent != nullptr && parent->layout.kind == LayoutKind::Vertical;
     if (c.width.mode == SizeMode::Fill && parentRow) {
@@ -238,6 +238,8 @@ GeneratedFile stylesFile(const ApplicationModel& model, const std::string& path)
     w.line(".screen { min-height: 100%; }");
     w.line(".screen[hidden] { display: none; }");
     w.line("button, input, select { font: inherit; }");
+    w.line("p, ul { margin: 0; }");
+    w.line("ul { padding-left: 20px; }");
     w.line();
     for (const auto& screen : model.screens) {
         w.line("#" + cssId(screen.root.id) + " { background: " + rootBackground(model, screen.root) + "; }");

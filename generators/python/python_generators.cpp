@@ -151,9 +151,10 @@ private:
         case LayoutKind::Flex: {
             bool isColumn = l.kind != LayoutKind::Flex;
             if (isColumn) {
-                std::string anchor = l.align == Align::Center ? "n" : l.align == Align::End ? "ne" : "nw";
+                Align align = c.alignSelf.value_or(l.align);
+                std::string anchor = align == Align::Center ? "n" : align == Align::End ? "ne" : "nw";
                 double top = index == 0 ? l.padding.top : gap;
-                std::string fill = c.width.mode == SizeMode::Fill || l.align == Align::Stretch ? ", fill=\"x\"" : "";
+                std::string fill = c.width.mode == SizeMode::Fill || align == Align::Stretch ? ", fill=\"x\"" : "";
                 std::string expand = c.height.mode == SizeMode::Fill || c.grow > 0 ? ", expand=True, fill=\"both\"" : fill;
                 w_.line(var + ".pack(side=\"top\", anchor=\"" + anchor + "\", padx=" + numberText(padX) + ", pady=(" + numberText(top) + ", 0)" + expand + ")");
             } else {
