@@ -17,11 +17,18 @@
     "name": "Qt desktop application",
     "description": "A C++ desktop app using Qt Widgets, for Windows, macOS and Linux.",
     "category": "Desktop",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "C++",
     "framework": "Qt 6 Widgets",
     "generator": "qt-cpp",
-    "tools": ["cmake", "qt"],
+    "tools": [
+      "cmake",
+      "qt"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -30,11 +37,18 @@
     "name": "Qt Quick application",
     "description": "A QML interface with a small C++ entry point, for desktop and mobile Qt targets.",
     "category": "Cross-platform",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "QML",
     "framework": "Qt Quick",
     "generator": "qml",
-    "tools": ["cmake", "qt"],
+    "tools": [
+      "cmake",
+      "qt"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -43,11 +57,17 @@
     "name": "Native Android application",
     "description": "A Kotlin app using Jetpack Compose, built with Gradle.",
     "category": "Mobile",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "language": "Kotlin",
     "framework": "Jetpack Compose",
     "generator": "compose-kotlin",
-    "tools": ["jdk", "android-sdk", "gradle"],
+    "tools": [
+      "jdk",
+      "android-sdk",
+      "gradle"
+    ],
     "starter": "phone",
     "preview": "emulator"
   },
@@ -56,24 +76,34 @@
     "name": "Android application with XML layouts",
     "description": "A Java app using Android Views and XML layouts, built with Gradle.",
     "category": "Mobile",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "language": "Java",
     "framework": "Android Views",
     "generator": "android-java",
-    "tools": ["jdk", "android-sdk", "gradle"],
+    "tools": [
+      "jdk",
+      "android-sdk",
+      "gradle"
+    ],
     "starter": "phone",
     "preview": "emulator"
   },
   {
     "id": "apple-swiftui",
     "name": "Native Apple application",
-    "description": "A Swift app using SwiftUI, with targets for iOS, iPadOS, macOS, tvOS, watchOS and visionOS.",
+    "description": "A macOS app in Swift using SwiftUI, built with Swift Package Manager.",
     "category": "Mobile",
-    "platforms": ["ios", "ipados", "macos", "tvos", "watchos", "visionos"],
+    "platforms": [
+      "macos"
+    ],
     "language": "Swift",
     "framework": "SwiftUI",
     "generator": "swiftui",
-    "tools": ["xcode"],
+    "tools": [
+      "swift"
+    ],
     "starter": "phone",
     "preview": "simulator"
   },
@@ -82,11 +112,15 @@
     "name": "Native Windows application (WPF)",
     "description": "A C# desktop app using WPF on .NET.",
     "category": "Desktop",
-    "platforms": ["windows"],
+    "platforms": [
+      "windows"
+    ],
     "language": "C#",
     "framework": "WPF",
     "generator": "wpf-csharp",
-    "tools": ["dotnet"],
+    "tools": [
+      "dotnet"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -95,11 +129,15 @@
     "name": "Native Windows application (WinUI 3)",
     "description": "A C# desktop app using WinUI 3 and the Windows App SDK.",
     "category": "Desktop",
-    "platforms": ["windows"],
+    "platforms": [
+      "windows"
+    ],
     "language": "C#",
     "framework": "WinUI 3",
     "generator": "winui-csharp",
-    "tools": ["dotnet"],
+    "tools": [
+      "dotnet"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -108,11 +146,16 @@
     "name": "Linux application (GTK 4)",
     "description": "A C application using GTK 4, built with Meson.",
     "category": "Desktop",
-    "platforms": ["linux"],
+    "platforms": [
+      "linux"
+    ],
     "language": "C",
     "framework": "GTK 4",
     "generator": "gtk-c",
-    "tools": ["meson", "gcc"],
+    "tools": [
+      "meson",
+      "gcc"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -121,11 +164,20 @@
     "name": "Flutter application",
     "description": "A Dart app that targets Android, iOS, web and desktop from one codebase.",
     "category": "Cross-platform",
-    "platforms": ["android", "ios", "web", "windows", "macos", "linux"],
+    "platforms": [
+      "android",
+      "ios",
+      "web",
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Dart",
     "framework": "Flutter",
     "generator": "flutter-dart",
-    "tools": ["flutter"],
+    "tools": [
+      "flutter"
+    ],
     "starter": "phone",
     "preview": "run"
   },
@@ -134,11 +186,17 @@
     "name": "React Native application",
     "description": "A TypeScript app for Android and iOS using React Native.",
     "category": "Cross-platform",
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "language": "TypeScript",
     "framework": "React Native",
     "generator": "react-native",
-    "tools": ["node", "npm"],
+    "tools": [
+      "node",
+      "npm"
+    ],
     "starter": "phone",
     "preview": "emulator"
   },
@@ -147,11 +205,16 @@
     "name": "React web application",
     "description": "A TypeScript single-page app using React, built with Vite.",
     "category": "Web",
-    "platforms": ["web"],
+    "platforms": [
+      "web"
+    ],
     "language": "TypeScript",
     "framework": "React",
     "generator": "react-ts",
-    "tools": ["node", "npm"],
+    "tools": [
+      "node",
+      "npm"
+    ],
     "starter": "web",
     "preview": "browser"
   },
@@ -160,7 +223,9 @@
     "name": "Web site",
     "description": "Plain HTML, CSS and JavaScript with no build step.",
     "category": "Web",
-    "platforms": ["web"],
+    "platforms": [
+      "web"
+    ],
     "language": "HTML",
     "framework": "HTML and CSS",
     "generator": "html-css",
@@ -173,11 +238,17 @@
     "name": "Python desktop application (Tkinter)",
     "description": "A Python app using Tkinter from the standard library, with no packages to install.",
     "category": "Desktop",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Python",
     "framework": "Tkinter",
     "generator": "python-tk",
-    "tools": ["python"],
+    "tools": [
+      "python"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -186,11 +257,17 @@
     "name": "Python desktop application (PySide6)",
     "description": "A Python app using Qt through PySide6.",
     "category": "Desktop",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Python",
     "framework": "PySide6",
     "generator": "pyside6",
-    "tools": ["python"],
+    "tools": [
+      "python"
+    ],
     "starter": "desktop",
     "preview": "run"
   },
@@ -199,11 +276,17 @@
     "name": "C++ library",
     "description": "A static library with a CMake build and a test program.",
     "category": "Library",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "C++",
     "framework": "None",
     "generator": "",
-    "tools": ["cmake"],
+    "tools": [
+      "cmake"
+    ],
     "starter": "none",
     "preview": "none",
     "files": {
@@ -219,11 +302,17 @@
     "name": "Rust program",
     "description": "A Cargo package with a command line program.",
     "category": "Code",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Rust",
     "framework": "None",
     "generator": "",
-    "tools": ["cargo"],
+    "tools": [
+      "cargo"
+    ],
     "starter": "none",
     "preview": "run",
     "files": {
@@ -237,11 +326,17 @@
     "name": "Go program",
     "description": "A Go module with a command line program.",
     "category": "Code",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Go",
     "framework": "None",
     "generator": "",
-    "tools": ["go"],
+    "tools": [
+      "go"
+    ],
     "starter": "none",
     "preview": "run",
     "files": {
@@ -255,11 +350,17 @@
     "name": "Python program",
     "description": "A Python script with a pyproject file.",
     "category": "Code",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Python",
     "framework": "None",
     "generator": "",
-    "tools": ["python"],
+    "tools": [
+      "python"
+    ],
     "starter": "none",
     "preview": "run",
     "files": {
@@ -273,11 +374,18 @@
     "name": "Node.js program",
     "description": "A JavaScript program with a package file.",
     "category": "Code",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "JavaScript",
     "framework": "None",
     "generator": "",
-    "tools": ["node", "npm"],
+    "tools": [
+      "node",
+      "npm"
+    ],
     "starter": "none",
     "preview": "run",
     "files": {
@@ -291,11 +399,17 @@
     "name": "FormaIDE plugin",
     "description": "A plugin that adds a code generator to FormaIDE, written in Python.",
     "category": "Library",
-    "platforms": ["windows", "macos", "linux"],
+    "platforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
     "language": "Python",
     "framework": "FormaIDE plugin API",
     "generator": "",
-    "tools": ["python"],
+    "tools": [
+      "python"
+    ],
     "starter": "none",
     "preview": "none",
     "files": {
