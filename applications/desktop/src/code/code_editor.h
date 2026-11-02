@@ -85,7 +85,6 @@ private:
     void onCharacterAdded(int character);
     void autoIndent();
     std::string rawText() const;
-    sptr_placeholder_t_guard();
 
     ScintillaEditBase* editor_;
     ScintillaEditBase* minimap_ = nullptr;
