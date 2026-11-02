@@ -18,7 +18,7 @@ for name, value in sclex_values.items():
 groups = {}
 current = []
 for line in header.splitlines():
-    comment = re.match(r"\s*/\* Lexical states? for ([\w, ]+)", line)
+    comment = re.match(r"\s*(?://|/\*)\s*Lexical states? for ([\w, ]+)", line)
     if comment:
         current = re.findall(r"SCLEX_\w+", comment.group(1))
         continue
