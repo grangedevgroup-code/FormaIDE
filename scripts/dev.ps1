@@ -59,6 +59,7 @@ try {
         if ($Action -eq 'configure') { exit 0 }
     }
 
+    $Targets = @($Targets | ForEach-Object { $_ -split ',' })
     $buildArgs = @('--build', $buildDir, '--parallel', "$Jobs")
     if ($Targets.Count -gt 0) { $buildArgs += '--target'; $buildArgs += $Targets }
     $buildArgs += '--'; $buildArgs += '-k'; $buildArgs += '0'
