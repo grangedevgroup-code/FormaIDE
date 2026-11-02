@@ -8,7 +8,7 @@ param(
     [string]$TestFilter = ''
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $buildDir = Join-Path $repo "build\$Preset"
 
