@@ -1,0 +1,6 @@
+find_package(Qt6 REQUIRED COMPONENTS Test)
+add_executable(forma_ui_tests ui_test.cpp)
+target_link_libraries(forma_ui_tests PRIVATE forma_desktop Qt6::Test GTest::gtest)
+forma_apply_warnings(forma_ui_tests)
+add_test(NAME forma_ui_tests COMMAND forma_ui_tests)
+set_tests_properties(forma_ui_tests PROPERTIES TIMEOUT 600 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
