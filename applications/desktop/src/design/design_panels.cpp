@@ -692,6 +692,8 @@ void InspectorPanel::addTextRow(QFormLayout* form, const QString& label, const s
 void InspectorPanel::addNumberRow(QFormLayout* form, const QString& label, const std::string& key, double minimum, double maximum, double fallback)
 {
     auto* spin = new QDoubleSpinBox(content_);
+    spin->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    spin->setMinimumWidth(36);
     spin->setObjectName(toQ("field_" + key));
     bool optional = fallback <= -999999;
     if (optional) {
@@ -702,7 +704,6 @@ void InspectorPanel::addNumberRow(QFormLayout* form, const QString& label, const
     spin->setRange(minimum, maximum);
     spin->setDecimals(2);
     spin->setKeyboardTracking(false);
-    spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
     form->addRow(label, spin);
     connect(spin, &QDoubleSpinBox::valueChanged, this, [this, key, fallback](double value) { setValue(key, std::abs(value - fallback) < 1e-9 ? Json(nullptr) : Json(value)); });
     refreshers_.push_back([this, key, spin, fallback] {
@@ -800,11 +801,12 @@ void InspectorPanel::addSizeRow(QFormLayout* form, const QString& label, const s
     mode->addItem(tr("Fixed"), QStringLiteral("fixed"));
     mode->addItem(tr("Percent"), QStringLiteral("percent"));
     auto* value = new QDoubleSpinBox(holder);
+    value->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    value->setMinimumWidth(36);
     value->setObjectName(toQ("field_" + key));
     value->setRange(0, 100000);
     value->setDecimals(0);
     value->setKeyboardTracking(false);
-    value->setButtonSymbols(QAbstractSpinBox::NoButtons);
     value->setMaximumWidth(64);
     row->addWidget(mode, 1);
     row->addWidget(value);
@@ -860,10 +862,11 @@ void InspectorPanel::addInsetsRow(QFormLayout* form, const QString& label, const
     const QStringList tips = {tr("Top"), tr("Right"), tr("Bottom"), tr("Left")};
     for (int i = 0; i < 4; ++i) {
         auto* spin = new QDoubleSpinBox(holder);
+        spin->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        spin->setMinimumWidth(36);
         spin->setRange(0, 10000);
         spin->setDecimals(0);
         spin->setKeyboardTracking(false);
-        spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
         spin->setToolTip(tips[i]);
         spin->setObjectName(toQ("field_" + key + "_" + std::to_string(i)));
         row->addWidget(spin);

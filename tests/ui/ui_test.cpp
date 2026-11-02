@@ -346,6 +346,44 @@ TEST_F(UiFixture, DesignGenerateEditRegenerateKeepsUserCode)
     EXPECT_NE(disk->find("user marker kept"), std::string::npos);
 }
 
+TEST_F(UiFixture, InspectorSettingsAndGitScreens)
+{
+    createProject(QStringLiteral("Panels App"));
+    auto* controller = window_->controller();
+    QString mode = Theme::instance().isDark() ? QStringLiteral("dark") : QStringLiteral("light");
+    const ir::Screen& screen = controller->model()->screens.front();
+    QString button;
+    for (const auto& child : screen.root.children) {
+        if (child.type == "button")
+            button = toQ(child.id);
+    }
+    ASSERT_FALSE(button.isEmpty());
+    controller->setSelection({button});
+    settle();
+    capture(*window_, QStringLiteral("inspector-") + mode);
+    window_->showWorkspace(QStringLiteral("code"));
+    window_->showDock(QStringLiteral("git"));
+    settle();
+    auto* init = window_->findChild<QPushButton*>(QStringLiteral("gitInit"));
+    ASSERT_NE(init, nullptr);
+    if (git::GitClient::available()) {
+        ASSERT_TRUE(waitFor([&] { return init->isVisible(); }, 15000));
+        QTest::mouseClick(init, Qt::LeftButton);
+        auto* changes = window_->findChild<QTreeWidget*>(QStringLiteral("gitChanges"));
+        ASSERT_NE(changes, nullptr);
+        ASSERT_TRUE(waitFor([&] { return changes->topLevelItemCount() > 0; }, 20000));
+        capture(*window_, QStringLiteral("git-") + mode);
+    }
+    window_->showWorkspace(QStringLiteral("debug"));
+    capture(*window_, QStringLiteral("debug-") + mode);
+    SettingsDialog settings(window_.get());
+    settings.show();
+    for (const auto& page : {QStringLiteral("Appearance"), QStringLiteral("Editor"), QStringLiteral("Assistant"), QStringLiteral("Plugins")}) {
+        settings.showPage(page);
+        capture(settings, QStringLiteral("settings-%1-%2").arg(page, mode));
+    }
+}
+
 TEST_F(UiFixture, DesignBuildAndRunTheRealApp)
 {
     auto& tools = AppContext::instance().tools();

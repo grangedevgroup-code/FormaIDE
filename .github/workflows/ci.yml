@@ -56,6 +56,7 @@ jobs:
           prefix=$(tail -n 1 fetch.log)
           echo "CMAKE_PREFIX_PATH=$prefix" >> "$GITHUB_ENV"
           echo "$prefix/bin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=$prefix/lib" >> "$GITHUB_ENV"
       - run: cmake --preset dev
       - run: cmake --build --preset dev --parallel
       - name: Test
@@ -88,6 +89,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.8.2"

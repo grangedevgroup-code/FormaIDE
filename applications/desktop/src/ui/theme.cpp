@@ -235,6 +235,7 @@ QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
 }
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus { border-color: %16; }
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled { color: %8; background: %10; }
+QAbstractSpinBox QLineEdit { border: none; padding: 0; background: transparent; border-radius: 0; }
 QLineEdit[role="search"] { padding-left: 6px; }
 QTabBar::close-button { image: url(@CLOSE@); subcontrol-position: right; width: 12px; height: 12px; margin: 2px; border-radius: 3px; }
 QTabBar::close-button:hover { background: %11; }

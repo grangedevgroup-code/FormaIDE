@@ -1,5 +1,6 @@
 #include "forma/project/project.h"
 
+#include <fstream>
 #include <algorithm>
 
 #include "forma/codegen/template_engine.h"
@@ -306,6 +307,12 @@ Status ProjectSession::initialize()
 {
     filesystem_ = createLocalFilesystemService(root_);
     root_ = filesystem_->root();
+    if (auto status = filesystem_->createDirectories(".forma"); !status)
+        return status;
+    if (std::error_code ec; !fs::exists(root_ / ".forma" / ".gitignore", ec)) {
+        std::ofstream ignore(root_ / ".forma" / ".gitignore", std::ios::binary);
+        ignore << "*\n!.gitignore\n!generated/\n!generated/**\n";
+    }
     if (auto status = filesystem_->createDirectories(".forma"); !status)
         return status;
     auto opened = ChangeHistory::open(root_ / ".forma" / "project.db");
