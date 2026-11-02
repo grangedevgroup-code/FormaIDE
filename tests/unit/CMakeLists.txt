@@ -1,6 +1,6 @@
 file(GLOB unit_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_executable(forma_unit_tests ${unit_sources})
-target_link_libraries(forma_unit_tests PRIVATE forma::core forma::application_model forma::layout forma::canvas forma::design forma::code_generation forma::build forma::project forma::generators forma::code_editor forma::resources GTest::gtest_main)
+target_link_libraries(forma_unit_tests PRIVATE forma::core forma::application_model forma::layout forma::canvas forma::design forma::code_generation forma::build forma::project forma::generators forma::code_editor forma::resources forma::terminal forma::version_control forma::lsp forma::debugger forma::ai forma::plugins forma::assets GTest::gtest_main)
 forma_apply_warnings(forma_unit_tests)
 
 include(GoogleTest)

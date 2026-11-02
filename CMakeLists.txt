@@ -25,6 +25,7 @@ include(FormaModule)
 add_subdirectory(core)
 add_subdirectory(modules)
 add_subdirectory(generators)
+add_subdirectory(modules/ai)
 
 if(FORMA_BUILD_CLI AND NOT EMSCRIPTEN)
     add_subdirectory(applications/cli)
