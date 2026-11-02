@@ -230,6 +230,10 @@ ir::ApplicationModel buildStarterModel(const ProjectDescriptor& descriptor, std:
         width = 1280;
         height = 800;
         device = "desktop-hd";
+    } else if (std::find(descriptor.targets.front().platforms.begin(), descriptor.targets.front().platforms.end(), "android") != descriptor.targets.front().platforms.end()) {
+        width = 412;
+        height = 924;
+        device = "pixel-9";
     } else {
         width = 393;
         height = 852;

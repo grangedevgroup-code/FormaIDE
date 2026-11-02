@@ -52,7 +52,7 @@ jobs:
       - name: Fetch Qt
         shell: bash
         run: |
-          python scripts/fetch_qt.py "$RUNNER_TEMP/qt" | tee fetch.log
+          python resources/data/setup/fetch_qt.py "$RUNNER_TEMP/qt" | tee fetch.log
           prefix=$(tail -n 1 fetch.log)
           echo "CMAKE_PREFIX_PATH=$prefix" >> "$GITHUB_ENV"
           echo "$prefix/bin" >> "$GITHUB_PATH"

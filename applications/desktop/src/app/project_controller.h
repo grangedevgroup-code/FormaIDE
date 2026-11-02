@@ -8,6 +8,7 @@
 #include <set>
 
 #include "forma/build/build_system.h"
+#include "forma/build/setup.h"
 #include "forma/codegen/pipeline.h"
 #include "forma/core/file_watcher.h"
 #include "forma/core/paths.h"
@@ -67,6 +68,13 @@ public:
     bool appRunning() const;
     void buildAndRun(const QString& configuration);
     std::vector<build::Artifact> artifacts() const { return artifacts_; }
+    bool isAndroidProject() const;
+    bool opensInBrowser() const;
+    QString runDevice() const { return runDevice_; }
+    void setRunDevice(const QString& id) { runDevice_ = id; }
+    std::vector<build::RunDevice> runDevices();
+    QString lastRunUrl() const { return lastRunUrl_; }
+    QStringList missingToolsForTarget();
 
     void setBuildProblems(std::vector<ProblemItem> problems);
     void setEditorProblems(const QString& file, std::vector<ProblemItem> problems);
@@ -100,16 +108,32 @@ Q_SIGNALS:
     void statusMessage(const QString& text);
     void automationLogged(const QString& actor, const QString& command);
     void recoveryAvailable(int buffers, bool design);
+    void toolsMissing(const QStringList& tools, const QString& message);
+    void runNeedsDevice(const QString& message, const QStringList& toolsToInstall);
+    void noBuildSystem();
+    void runUrlFound(const QString& url);
+    void runProgress(const QString& text);
 
 private:
     void attachSession();
     void onFilesChangedExternally(const std::vector<FileChange>& changes);
     build::BuildRequest requestFor(const QString& configuration) const;
+    void runOnAndroid(const QString& configuration);
+    void startAndroidLaunch(const QString& serial, const QString& configuration, bool waitForBoot);
+    void attachLogcat(const QString& serial, const QString& package, int attempt);
+    void noticeUrl(const QString& text);
 
     std::unique_ptr<project::ProjectSession> session_;
     std::unique_ptr<IFileWatcher> watcher_;
     std::unique_ptr<build::BuildJob> buildJob_;
     std::unique_ptr<Process> runningApp_;
+    std::unique_ptr<Process> emulator_;
+    std::unique_ptr<build::BuildJob> launchJob_;
+    QString runDevice_;
+    QString androidSerial_;
+    QString androidPackageName_;
+    QString lastRunUrl_;
+    QString outputTail_;
     QTimer autosaveTimer_;
     QTimer watchDebounce_;
     QTimer validationTimer_;

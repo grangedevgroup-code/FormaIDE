@@ -1,4 +1,5 @@
 #include "forma/build/toolchain.h"
+#include "forma/build/setup.h"
 
 #include <algorithm>
 #include <regex>
@@ -73,6 +74,15 @@ const std::vector<ToolSpec>& toolSpecs()
         {"clangd", "clangd", "Language servers", {"clangd"}, {"--version"}, "version ([0-9.]+)", "winget install LLVM.LLVM", "brew install llvm", "Install clangd with your package manager", {"C", "C++"}},
         {"lldb-dap", "lldb-dap", "Debuggers", {"lldb-dap", "lldb-vscode"}, {"--version"}, "version ([0-9.]+)", "winget install LLVM.LLVM", "Comes with Xcode", "Install lldb with your package manager", {"C", "C++", "Swift", "Rust"}},
         {"gdb", "GDB", "Debuggers", {"gdb"}, {"--version"}, "([0-9]+\\.[0-9.]+)", "Available through MSYS2", "brew install gdb", "Install gdb with your package manager", {"C", "C++", "Rust"}},
+        {"cpp-compiler", "C++ compiler", "C and C++ compilers", {}, {}, "", "Install Visual Studio Build Tools", "xcode-select --install", "Install g++ with your package manager", {"C", "C++"}},
+        {"android-acceleration", "Emulator acceleration", "Devices", {}, {}, "", "Install the Android Emulator hypervisor driver", "", "Turn on KVM", {"Android"}},
+        {"pyright", "Python language server", "Language servers", {"pyright-langserver"}, {}, "", "npm install -g pyright", "npm install -g pyright", "npm install -g pyright", {"Python"}},
+        {"typescript-language-server", "TypeScript language server", "Language servers", {"typescript-language-server"}, {"--version"}, "([0-9.]+)", "npm install -g typescript typescript-language-server", "npm install -g typescript typescript-language-server", "npm install -g typescript typescript-language-server", {"JavaScript", "TypeScript"}},
+        {"html-language-server", "HTML and CSS language servers", "Language servers", {"vscode-html-language-server"}, {}, "", "npm install -g vscode-langservers-extracted", "npm install -g vscode-langservers-extracted", "npm install -g vscode-langservers-extracted", {"HTML", "CSS"}},
+        {"csharp-ls", "C# language server", "Language servers", {"csharp-ls"}, {}, "", "dotnet tool install --global csharp-ls", "dotnet tool install --global csharp-ls", "dotnet tool install --global csharp-ls", {"C#"}},
+        {"gopls", "Go language server", "Language servers", {"gopls"}, {"version"}, "v([0-9.]+)", "go install golang.org/x/tools/gopls@latest", "go install golang.org/x/tools/gopls@latest", "go install golang.org/x/tools/gopls@latest", {"Go"}},
+        {"rust-analyzer", "Rust language server", "Language servers", {"rust-analyzer"}, {"--version"}, "rust-analyzer ([0-9.]+)", "rustup component add rust-analyzer", "rustup component add rust-analyzer", "rustup component add rust-analyzer", {"Rust"}},
+        {"kotlin-language-server", "Kotlin language server", "Language servers", {"kotlin-language-server"}, {}, "", "Download from github.com/fwcd/kotlin-language-server", "Download from github.com/fwcd/kotlin-language-server", "Download from github.com/fwcd/kotlin-language-server", {"Kotlin"}},
     };
     return specs;
 }
@@ -303,6 +313,25 @@ ToolInfo ToolchainDetector::probe(std::string_view id)
 #endif
         return info;
     }
+    if (id == "cpp-compiler") {
+        for (const char* compiler : {"msvc", "clang", "gcc"}) {
+            ToolInfo candidate = probe(compiler);
+            if (candidate.available) {
+                info.available = true;
+                info.version = candidate.version;
+                info.path = candidate.path;
+                info.note = candidate.name;
+                break;
+            }
+        }
+        return info;
+    }
+    if (id == "android-acceleration") {
+        std::string problem = androidAcceleration(*this);
+        info.available = problem.empty();
+        info.note = problem;
+        return info;
+    }
     if (id == "qt") {
         auto kit = bestQtKit();
         if (kit) {
@@ -395,7 +424,7 @@ ToolInfo ToolchainDetector::probe(std::string_view id)
         std::vector<std::string> arguments;
         for (const char* argument : spec->versionArgs)
             arguments.emplace_back(argument);
-        std::string output = runForOutput(*found, arguments);
+        std::string output = arguments.empty() ? std::string() : runForOutput(*found, arguments);
         if (output.empty() && !arguments.empty())
             continue;
         info.available = true;
@@ -421,6 +450,7 @@ std::vector<QtKit> ToolchainDetector::qtKits()
         roots.push_back(paths::fromUtf8(*dir));
 #if defined(_WIN32)
     roots.push_back("C:/Qt");
+    roots.push_back(paths::homeDir() / "Qt");
 #else
     roots.push_back(paths::homeDir() / "Qt");
     roots.push_back("/opt/Qt");

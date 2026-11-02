@@ -8,6 +8,7 @@
 #include "forma/core/hash.h"
 #include "forma/core/paths.h"
 #include "forma/core/text.h"
+#include "forma/resources/resources.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -62,24 +63,24 @@ std::string hostKey()
 Download androidToolsDownload()
 {
 #if defined(_WIN32)
-    return {"https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip", "@ANDROID_WIN@"};
+    return {"https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip", "e5885e2e59038c0778a85fc19f01de7ce7c567c105553f7617b936b1e0e87b2b"};
 #elif defined(__APPLE__) && defined(__aarch64__)
-    return {"https://dl.google.com/android/repository/commandlinetools-mac_arm64-16111833_latest.zip", "@ANDROID_MAC_ARM@"};
+    return {"https://dl.google.com/android/repository/commandlinetools-mac_arm64-16111833_latest.zip", "58da8f215781cc0208743e88b65ae259780c55e7eb40e50373d377cf369232d6"};
 #elif defined(__APPLE__)
-    return {"https://dl.google.com/android/repository/commandlinetools-mac_x86_64-16111833_latest.zip", "@ANDROID_MAC_X64@"};
+    return {"https://dl.google.com/android/repository/commandlinetools-mac_x86_64-16111833_latest.zip", "7e601c04e7173754b3d051a87bb4c3a8243c65a9d7bfa9356ed6499fb8953fa3"};
 #else
-    return {"https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip", "@ANDROID_LINUX@"};
+    return {"https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip", "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"};
 #endif
 }
 
 Download gradleDownload()
 {
-    return {"https://services.gradle.org/distributions/gradle-9.8.2-bin.zip", "@GRADLE@"};
+    return {"https://services.gradle.org/distributions/gradle-9.8.2-bin.zip", "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607"};
 }
 
 Download kotlinServerDownload()
 {
-    return {"https://github.com/fwcd/kotlin-language-server/releases/download/1.3.13/server.zip", "@KOTLIN_LS@"};
+    return {"https://github.com/fwcd/kotlin-language-server/releases/download/1.3.13/server.zip", "4fe7d71d087b307c7869036171bd9d8c6a4284cd7c25b89098b0a24eb2d9b6d2"};
 }
 
 fs::path defaultAndroidSdk()
@@ -335,21 +336,22 @@ void planAcceleration(InstallPlan& plan, ToolchainDetector& tools)
 void planQt(InstallPlan& plan)
 {
     plan.dependencies = {"python"};
-    fs::path destination = paths::homeDir() / "Qt";
-    plan.note = "Installs Qt " + std::string(kQtVersion) + " to " + paths::toUtf8(destination) + " using aqtinstall. Qt is open source under the LGPL. This downloads about 1 GB.";
-    plan.steps.push_back(commandStep("Get the Qt installer", "python", {"-m", "pip", "install", "--user", "--upgrade", "aqtinstall"}));
-#if defined(_WIN32)
-    const std::vector<std::string> kit = {"windows", "desktop", kQtVersion, "win64_msvc2022_64"};
-#elif defined(__APPLE__)
-    const std::vector<std::string> kit = {"mac", "desktop", kQtVersion, "clang_64"};
-#else
-    const std::vector<std::string> kit = {"linux", "desktop", kQtVersion, "linux_gcc_64"};
-#endif
-    std::vector<std::string> arguments = {"-m", "aqt", "install-qt"};
-    arguments.insert(arguments.end(), kit.begin(), kit.end());
-    arguments.push_back("-O");
-    arguments.push_back(paths::toUtf8(destination));
-    plan.steps.push_back(commandStep("Install Qt", "python", std::move(arguments)));
+    fs::path destination = paths::homeDir() / "Qt" / kQtVersion;
+    fs::path script = paths::userCacheDir() / "setup" / "fetch_qt.py";
+    plan.note = "Installs Qt " + std::string(kQtVersion) + " to " + paths::toUtf8(destination) + " from download.qt.io and checks every archive. Qt is open source under the LGPL. This downloads about 1 GB.";
+    SetupStep prepare;
+    prepare.label = "Prepare the Qt installer";
+    prepare.action = [script]() -> Status {
+        auto data = resources::find("setup/fetch_qt.py");
+        if (!data)
+            return makeError("setup.resource", "The Qt installer script is missing from this build of FormaIDE");
+        std::error_code ec;
+        fs::create_directories(script.parent_path(), ec);
+        return paths::writeFileAtomic(script, std::string(data->data(), data->size()));
+    };
+    plan.steps.push_back(std::move(prepare));
+    plan.steps.push_back(commandStep("Get the archive reader", "python", {"-m", "pip", "install", "--user", "--upgrade", "py7zr"}));
+    plan.steps.push_back(commandStep("Install Qt", "python", {paths::toUtf8(script), paths::toUtf8(destination), kQtVersion}));
 }
 
 void planMsvc(InstallPlan& plan)

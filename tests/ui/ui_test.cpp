@@ -187,6 +187,36 @@ TEST_F(UiFixture, WorkspaceTourShowsTheRightPanels)
     }
 }
 
+TEST_F(UiFixture, CodingWithRealInputReachesDisk)
+{
+    createProject(QStringLiteral("Typing App"), QStringLiteral("blank"));
+    auto* controller = window_->controller();
+    ASSERT_TRUE(controller->session()->filesystem().writeFile("hello.py", "print('one')\n"));
+    window_->showWorkspace(QStringLiteral("code"));
+    settle();
+    capture(*window_, QStringLiteral("code-empty"));
+    CodeEditor* editor = window_->editors()->openFile(QStringLiteral("hello.py"));
+    ASSERT_NE(editor, nullptr);
+    settle();
+    QWidget* focused = window_->focusWidget();
+    ASSERT_NE(focused, nullptr);
+    EXPECT_TRUE(focused == editor || editor->isAncestorOf(focused)) << focused->metaObject()->className();
+    QTest::keyClicks(focused, QStringLiteral("x = 1"));
+    QTest::keyClick(focused, Qt::Key_Return);
+    settle();
+    EXPECT_TRUE(editor->isModified());
+    EXPECT_TRUE(editor->text().contains(QStringLiteral("x = 1"))) << fromQ(editor->text());
+    QTest::keySequence(focused, QKeySequence::Save);
+    settle();
+    capture(*window_, QStringLiteral("code-typed"));
+    auto disk = controller->session()->filesystem().readFile("hello.py");
+    ASSERT_TRUE(disk);
+    EXPECT_NE(disk->find("x = 1"), std::string::npos) << *disk;
+    QTest::keySequence(focused, QKeySequence::Undo);
+    settle();
+    EXPECT_FALSE(editor->text().contains(QStringLiteral("x = 1\n"))) << fromQ(editor->text());
+}
+
 TEST_F(UiFixture, CanvasDropInsertsSelectsAndUndoes)
 {
     createProject(QStringLiteral("Canvas App"));

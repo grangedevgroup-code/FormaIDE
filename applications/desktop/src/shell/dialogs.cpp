@@ -296,7 +296,7 @@ project::NewProjectOptions NewProjectDialog::options() const
 {
     project::NewProjectOptions options;
     options.name = fromQ(name_->text().trimmed());
-    options.location = paths::fromUtf8(fromQ(location_->text()));
+    options.location = paths::fromUtf8(fromQ(QDir(location_->text()).filePath(name_->text().trimmed())));
     options.bundleId = fromQ(bundle_->text().trimmed());
     if (templates_->currentItem() != nullptr)
         options.templateId = fromQ(templates_->currentItem()->data(0, Qt::UserRole).toString());

@@ -1,5 +1,6 @@
 #include "shell/setup_dialog.h"
 
+#include <QApplication>
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QHBoxLayout>
@@ -9,6 +10,7 @@
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QProgressBar>
+#include <QRegularExpression>
 #include <QPushButton>
 #include <QSplitter>
 #include <QTreeWidget>

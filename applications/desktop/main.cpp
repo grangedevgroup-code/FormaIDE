@@ -6,6 +6,7 @@
 #include <QSvgRenderer>
 
 #include "app/app_context.h"
+#include "forma/build/setup.h"
 #include "forma/resources/resources.h"
 #include "shell/main_window.h"
 #include "ui/theme.h"
@@ -36,6 +37,7 @@ int main(int argc, char* argv[])
     QApplication::setApplicationVersion(QStringLiteral(FORMA_VERSION));
     QApplication::setWindowIcon(applicationIcon());
 
+    forma::build::refreshEnvironmentFromSystem();
     auto& context = forma::ui::AppContext::instance();
     auto& theme = forma::ui::Theme::instance();
     theme.setMode(forma::ui::toQ(context.settings().getString("appearance.theme", "system")));
