@@ -378,7 +378,9 @@ private:
                 entry.size = it->file_size(statError);
                 auto time = it->last_write_time(statError);
                 if (!statError) {
-                    auto system = std::chrono::clock_cast<std::chrono::system_clock>(time);
+                    auto offset = time - fs::file_time_type::clock::now();
+                    auto system = std::chrono::system_clock::now()
+                        + std::chrono::duration_cast<std::chrono::system_clock::duration>(offset);
                     entry.modifiedMillis
                         = std::chrono::duration_cast<std::chrono::milliseconds>(system.time_since_epoch()).count();
                 }
