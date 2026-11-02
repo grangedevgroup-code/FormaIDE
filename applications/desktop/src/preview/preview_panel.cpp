@@ -57,7 +57,14 @@ PreviewPanel::PreviewPanel(ProjectController* controller, QWidget* parent) : QWi
     run_->setObjectName(QStringLiteral("previewRun"));
     run_->setProperty("role", "primary");
     bar->addWidget(run_);
-    layout->addWidget(header);
+    auto* headerScroll = new QScrollArea(this);
+    headerScroll->setFrameShape(QFrame::NoFrame);
+    headerScroll->setWidgetResizable(true);
+    headerScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    headerScroll->setWidget(header);
+    headerScroll->setFixedHeight(header->sizeHint().height());
+    layout->addWidget(headerScroll);
+    setMinimumWidth(320);
     notice_ = new QLabel(tr("Simulated preview: this draws your design with FormaIDE's own renderer. Fonts and native controls can differ in the real app."), this);
     notice_->setObjectName(QStringLiteral("previewNotice"));
     notice_->setProperty("role", "muted");
