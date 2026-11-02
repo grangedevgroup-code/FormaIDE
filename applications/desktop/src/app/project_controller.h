@@ -10,6 +10,7 @@
 #include "forma/build/build_system.h"
 #include "forma/codegen/pipeline.h"
 #include "forma/core/file_watcher.h"
+#include "forma/core/paths.h"
 #include "forma/ir/editor.h"
 #include "forma/project/project.h"
 

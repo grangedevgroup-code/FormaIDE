@@ -61,11 +61,12 @@ try {
 
     $buildArgs = @('--build', $buildDir, '--parallel', "$Jobs")
     if ($Targets.Count -gt 0) { $buildArgs += '--target'; $buildArgs += $Targets }
+    $buildArgs += '--'; $buildArgs += '-k'; $buildArgs += '0'
     if ($Action -in @('build', 'test', 'check')) {
         $output = & cmake @buildArgs 2>&1
         $code = $LASTEXITCODE
         if ($code -ne 0) {
-            $output | Select-String -Pattern 'error|FAILED|fatal' -CaseSensitive:$false | Select-Object -First 40 | ForEach-Object { $_.Line }
+            $output | Select-String -Pattern 'error|FAILED|fatal' -CaseSensitive:$false | Select-Object -First 200 | ForEach-Object { $_.Line }
             exit $code
         }
         $output | Select-Object -Last 2
