@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: [windows-2025, ubuntu-24.04, macos-26]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -40,7 +40,7 @@ jobs:
       matrix:
         os: [windows-2025, ubuntu-24.04, macos-26]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -77,7 +77,7 @@ jobs:
           - os: macos-26
             templates: web-static web-react python-tk python-qt apple-swiftui python-script node-script go-cli rust-cli cpp-library
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -110,7 +110,7 @@ jobs:
     name: Core compiled to WebAssembly
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
