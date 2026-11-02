@@ -1,5 +1,6 @@
 #include "forma/ir/validation.h"
 
+#include <algorithm>
 #include <cctype>
 #include <regex>
 #include <set>

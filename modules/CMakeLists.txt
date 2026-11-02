@@ -1,5 +1,8 @@
+add_subdirectory(resources)
 add_subdirectory(application_model)
 add_subdirectory(layout)
 add_subdirectory(canvas)
 add_subdirectory(design)
 add_subdirectory(code_generation)
+add_subdirectory(build)
+add_subdirectory(project)
