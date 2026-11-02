@@ -284,7 +284,8 @@ private:
         double borderWidth = style.borderWidth > 0 ? style.borderWidth : defaultBorderWidth;
         double radius = style.radius > 0 ? style.radius : defaultRadius;
 
-        bool any = !background.empty() || borderWidth > 0 || radius > 0 || !extraPadding.empty() || !defaultColor.empty()
+        const bool textual = type == "text" || type == "button" || type == "textinput" || type == "textarea" || type == "dropdown" || type == "checkbox" || type == "radio" || type == "switch";
+        bool any = textual || !background.empty() || borderWidth > 0 || radius > 0 || !extraPadding.empty() || !defaultColor.empty()
             || typography.size || typography.weight || typography.color || typography.italic || typography.underline || !typography.font.empty() || !typography.ref.empty();
         if (type == "shape" && propertyString(c, "shape") == "ellipse")
             any = true;
@@ -320,10 +321,11 @@ private:
             styleColor(c, "color", defaultColor, nullptr);
         if (!typography.font.empty())
             w_.line("{\"font-family\", " + qtString(typography.font) + "},");
-        if (!typography.ref.empty() && !typography.size) {
+        if ((textual || !typography.ref.empty()) && !typography.size) {
             layout::ResolvedTextStyle resolved = layout::resolveTextStyle(c, &model_);
             w_.line("{\"font-size\", u\"" + number(resolved.size) + "px\"_s},");
-            w_.line("{\"font-weight\", u\"" + std::to_string(resolved.weight) + "\"_s},");
+            if (!typography.weight)
+                w_.line("{\"font-weight\", u\"" + std::to_string(resolved.weight) + "\"_s},");
         }
         if (typography.size)
             styleNumber(c, "font-size", *typography.size, "typography.size");
