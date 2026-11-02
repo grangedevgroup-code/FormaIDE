@@ -5,6 +5,7 @@
 #include "forma/codegen/template_engine.h"
 #include "forma/codegen/text_diff.h"
 #include "forma/core/filesystem_service.h"
+#include "forma/core/text.h"
 #include "forma/ir/catalog.h"
 #include "test_support.h"
 
