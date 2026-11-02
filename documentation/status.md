@@ -4,11 +4,11 @@ This page says what has actually been tested in version 0.1.0, and what hasn't. 
 
 ## The application
 
-The desktop app builds and passes its automated interface tests on Windows, where the whole loop was run for real: create a project, add a component on the canvas, generate, edit the code, regenerate, build with MSVC and Qt, run the app, and stop it. Linux and macOS builds of the app run the same tests in CI, without a display, so they are less proven than Windows. No installer is offered yet for Linux or macOS.
+The desktop app builds and passes its automated interface tests on Windows, where the whole loop was run for real: create a project, add a component on the canvas, generate, edit the code, regenerate, build with MSVC and Qt, run the app, and stop it. Linux and macOS builds of the app pass the same test suite in CI, but without a display, and nobody has used them by hand yet, so they are less proven than Windows. The Windows installer is the only package offered so far. On Linux and macOS, build from source.
 
 ## Generators
 
-Every generator below is built with its real toolchain in CI on each commit, except where noted, and the result was looked at by running it.
+Every generator here is built with its real toolchain in CI on each commit, on every platform it targets. Being built isn't the same as being looked at, so this is what has actually been seen running.
 
 Qt Widgets, WPF, Tkinter, HTML and React were each run and compared by eye against the canvas on Windows. They match in layout, colours and text, with small differences in font rendering. The WPF screenshot was taken with software rendering.
 
@@ -17,6 +17,8 @@ Jetpack Compose builds a real APK, but that APK has not been run on a phone or e
 All of them handle containers, the main layouts, text, buttons, inputs, checkboxes, radio buttons, switches, dropdowns, sliders, dividers, spacers, lists and images. Qt Widgets also has tabs, tables, charts, media, dialogs, bindings, state and reusable components. In the other generators, state changes and data bindings are only partly there, and anything a generator can't do shows up as a warning in Problems rather than being dropped silently.
 
 Reading changes back from code into the design works for text in Qt Widgets, and the others emit the source maps it relies on, but only Qt Widgets has been tested end to end.
+
+The code-only templates for C++ libraries, Rust, Go, Python and Node.js are also built in CI on all three systems.
 
 ## Templates FormaIDE doesn't offer yet
 

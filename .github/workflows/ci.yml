@@ -63,6 +63,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build/dev --output-on-failure --timeout 900
+      - name: Build a generated Qt project
+        run: python tests/toolchain/run_generators.py build/dev/bin/forma "${{ runner.temp }}/generated" qt-desktop
 
   generated-projects:
     name: Generated projects (${{ matrix.os }})
