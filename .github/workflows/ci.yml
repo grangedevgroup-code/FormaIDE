@@ -71,11 +71,11 @@ jobs:
       matrix:
         include:
           - os: windows-2025
-            templates: web-static web-react windows-wpf python-tk python-qt android-compose
+            templates: web-static web-react windows-wpf python-tk python-qt android-compose python-script node-script go-cli rust-cli cpp-library
           - os: ubuntu-24.04
-            templates: web-static web-react python-tk python-qt android-compose
+            templates: web-static web-react python-tk python-qt android-compose python-script node-script go-cli rust-cli cpp-library
           - os: macos-26
-            templates: web-static web-react python-tk python-qt apple-swiftui
+            templates: web-static web-react python-tk python-qt apple-swiftui python-script node-script go-cli rust-cli cpp-library
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
