@@ -355,7 +355,7 @@ TEST_F(UiFixture, DesignBuildAndRunTheRealApp)
     auto* controller = window_->controller();
     const ir::Screen& screen = controller->model()->screens.front();
     auto component = AppContext::instance().components().instantiate("button", "realAppButton");
-    component.text = "Clicked from the designer";
+    component.properties["text"] = "Clicked from the designer";
     ASSERT_TRUE(controller->editor()->insertComponent(screen.root.id, screen.root.id, -1, component));
     bool built = false;
     bool success = false;
