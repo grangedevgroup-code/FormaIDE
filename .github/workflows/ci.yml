@@ -22,7 +22,7 @@ jobs:
         os: [windows-2025, ubuntu-24.04, macos-26]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - run: pip install ninja
@@ -41,7 +41,7 @@ jobs:
         os: [windows-2025, ubuntu-24.04, macos-26]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - run: pip install ninja py7zr
@@ -78,7 +78,7 @@ jobs:
             templates: web-static web-react python-tk python-qt apple-swiftui python-script node-script go-cli rust-cli cpp-library
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - uses: actions/setup-node@v7
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - run: pip install ninja
