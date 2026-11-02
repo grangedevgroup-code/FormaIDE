@@ -4,6 +4,7 @@
 
 #include "forma/core/text.h"
 #include "forma/generators/registry.h"
+#include "forma/layout/layout_engine.h"
 #include "generator_support.h"
 
 namespace forma::generators {
@@ -25,7 +26,7 @@ const std::set<std::string>& cppReserved()
     return words;
 }
 
-std::string quoted(std::string_view value)
+std::string qtString(std::string_view value)
 {
     return "u\"" + escapeLiteral(value, LiteralStyle::CLike) + "\"_s";
 }
@@ -108,12 +109,12 @@ std::string stateInitialLiteral(const StateVariable& variable)
         for (const auto& item : stateDefaultList(variable)) {
             if (!first)
                 output += ", ";
-            output += quoted(item);
+            output += qtString(item);
             first = false;
         }
         return output + "}";
     }
-    return quoted(stateDefaultString(variable));
+    return qtString(stateDefaultString(variable));
 }
 
 std::string setterName(const std::string& name)
@@ -131,7 +132,7 @@ std::string jsonLiteralForState(const StateVariable* variable, const Json& value
     if (variable != nullptr) {
         std::string type = stateTypeName(*variable);
         if (type == "QString")
-            return quoted(value.is_string() ? value.get<std::string>() : dumpJsonCompact(value));
+            return qtString(value.is_string() ? value.get<std::string>() : dumpJsonCompact(value));
         if (type == "int")
             return intNumber(value.is_number() ? value.get<double>() : 0);
         if (type == "double")
@@ -140,7 +141,7 @@ std::string jsonLiteralForState(const StateVariable* variable, const Json& value
             return value.is_boolean() && value.get<bool>() ? "true" : "false";
     }
     if (value.is_string())
-        return quoted(value.get<std::string>());
+        return qtString(value.get<std::string>());
     if (value.is_number())
         return number(value.get<double>());
     if (value.is_boolean())
@@ -176,7 +177,7 @@ public:
     void emitRoot(const Component& root, const std::string& self)
     {
         w_.beginAnchor(owner_, root.id);
-        w_.line("setObjectName(" + quoted(root.id) + ");");
+        w_.line("setObjectName(" + qtString(root.id) + ");");
         w_.line("setAttribute(Qt::WA_StyledBackground, true);");
         emitStyle(root, self);
         emitSizeConstraints(root, self, true);
@@ -203,7 +204,7 @@ private:
     {
         ColorRef reference = colorRef(model_, value);
         if (reference.isToken)
-            return "Theme::color(" + quoted(reference.token) + ")";
+            return "Theme::color(" + qtString(reference.token) + ")";
         return {};
     }
 
@@ -300,7 +301,7 @@ private:
         }
         if (borderWidth > 0 && !borderColor.empty()) {
             styleNumber(c, "border-width", borderWidth, style.borderWidth > 0 ? "style.borderWidth" : nullptr);
-            w_.line("{\"border-style\", " + quoted(style.borderStyle.empty() ? "solid" : style.borderStyle) + "},");
+            w_.line("{\"border-style\", " + qtString(style.borderStyle.empty() ? "solid" : style.borderStyle) + "},");
             styleColor(c, "border-color", borderColor, style.borderColor && style.borderColor->rfind('$', 0) != 0 ? "style.borderColor" : nullptr);
         } else if (type == "button" || type == "textinput" || type == "dropdown") {
             w_.line("{\"border\", u\"none\"_s},");
@@ -318,7 +319,7 @@ private:
         else if (!defaultColor.empty())
             styleColor(c, "color", defaultColor, nullptr);
         if (!typography.font.empty())
-            w_.line("{\"font-family\", " + quoted(typography.font) + "},");
+            w_.line("{\"font-family\", " + qtString(typography.font) + "},");
         if (!typography.ref.empty() && !typography.size) {
             layout::ResolvedTextStyle resolved = layout::resolveTextStyle(c, &model_);
             w_.line("{\"font-size\", u\"" + number(resolved.size) + "px\"_s},");
@@ -347,7 +348,7 @@ private:
             w_.line(effect + "->setBlurRadius(" + number(shadow.blur) + ");");
             std::string color = colorExpression(shadow.color);
             if (color.empty())
-                color = quoted(shadow.color.empty() ? "#00000040" : shadow.color);
+                color = qtString(shadow.color.empty() ? "#00000040" : shadow.color);
             w_.line(effect + "->setColor(QColor(" + color + "));");
             w_.line(var + "->setGraphicsEffect(" + effect + ");");
         } else if (c.style.opacity < 1) {
@@ -510,7 +511,7 @@ private:
             for (const auto& item : propertyStrings(c, "items")) {
                 if (!items.empty())
                     items += ", ";
-                items += quoted(item);
+                items += qtString(item);
             }
             w_.line(var + "->addItems({" + items + "});");
             w_.line(var + "->setCurrentIndex(" + intNumber(propertyNumber(c, "selected", 0)) + ");");
@@ -531,7 +532,7 @@ private:
                 for (const auto& item : propertyStrings(c, "items")) {
                     if (!items.empty())
                         items += ", ";
-                    items += quoted(item);
+                    items += qtString(item);
                 }
                 w_.line(var + "->addItems({" + items + "});");
             }
@@ -543,7 +544,7 @@ private:
             for (const auto& column : columns) {
                 if (!labels.empty())
                     labels += ", ";
-                labels += quoted(column);
+                labels += qtString(column);
             }
             w_.line(var + "->setHorizontalHeaderLabels({" + labels + "});");
             w_.line(var + "->horizontalHeader()->setStretchLastSection(true);");
@@ -556,16 +557,16 @@ private:
                 source = asset->path;
             std::string fit = propertyString(c, "fit", "cover");
             if (!source.empty())
-                w_.line(var + "->setPixmap(QPixmap(" + quoted(":/" + source) + "));");
+                w_.line(var + "->setPixmap(QPixmap(" + qtString(":/" + source) + "));");
             if (fit != "none")
                 w_.line(var + "->setScaledContents(true);");
             std::string alt = propertyString(c, "alt");
             if (!alt.empty())
-                w_.line(var + "->setAccessibleName(" + quoted(alt) + ");");
+                w_.line(var + "->setAccessibleName(" + qtString(alt) + ");");
         } else if (type == "icon") {
             std::string name = propertyString(c, "name", "star");
-            w_.line(var + "->setPixmap(QIcon::fromTheme(" + quoted(name) + ").pixmap(" + intNumber(c.width.mode == SizeMode::Fixed ? c.width.value : 24) + "));");
-            w_.line(var + "->setAccessibleName(" + quoted(name) + ");");
+            w_.line(var + "->setPixmap(QIcon::fromTheme(" + qtString(name) + ").pixmap(" + intNumber(c.width.mode == SizeMode::Fixed ? c.width.value : 24) + "));");
+            w_.line(var + "->setAccessibleName(" + qtString(name) + ");");
         } else if (type == "navbar") {
             std::string layoutVar = var + "Layout";
             w_.line("auto *" + layoutVar + " = new QHBoxLayout(" + var + ");");
@@ -584,12 +585,14 @@ private:
                     w_.line("connect(" + back + ", &QToolButton::clicked, this, [this] { navigator().back(); });");
             }
             std::string title = var + "Title";
-            w_.line("auto *" + title + " = new QLabel(" + var + ");");
+            members.push_back({"QLabel", title});
+            includes_.insert("QLabel");
+            w_.line(title + " = new QLabel(" + var + ");");
             if (!boundState(c, "properties.title"))
                 boundText(c, title, "setText", "title");
             layout::ResolvedTextStyle resolved = layout::resolveTextStyle(c, &model_);
             w_.line("applyStyle(" + title + ", {{\"font-size\", u\"" + number(std::max(resolved.size, 17.0)) + "px\"_s}, {\"font-weight\", u\"" + std::to_string(std::max(resolved.weight, 600)) + "\"_s}, {\"color\", Theme::color(u\"text\"_s)}});");
-            w_.line(title + "->setObjectName(" + quoted(c.id + "_title") + ");");
+            w_.line(title + "->setObjectName(" + qtString(c.id + "_title") + ");");
             w_.line(layoutVar + "->addWidget(" + title + ", 1);");
             w_.line(var + "->setMinimumHeight(52);");
             includes_.insert("QHBoxLayout");
@@ -605,10 +608,10 @@ private:
             for (const auto& item : labels) {
                 if (!items.empty())
                     items += ", ";
-                items += quoted(item);
+                items += qtString(item);
             }
             w_.line(var + "->setLabels({" + items + "});");
-            w_.line(var + "->setKind(" + quoted(propertyString(c, "chart", "bar")) + ");");
+            w_.line(var + "->setKind(" + qtString(propertyString(c, "chart", "bar")) + ");");
         } else if (type == "map") {
             diagnostics_.push_back({Severity::Warning, "generator.placeholder", "Qt Widgets has no map control, so " + c.id + " is an empty frame. Place your map widget in it from your screen's code.", owner_, c.id, {}});
         } else if (type == "media") {
@@ -617,7 +620,7 @@ private:
             w_.line("auto *" + player + " = new QMediaPlayer(" + var + ");");
             w_.line(player + "->setVideoOutput(" + var + ");");
             if (!source.empty())
-                w_.line(player + "->setSource(QUrl(" + quoted(source) + "));");
+                w_.line(player + "->setSource(QUrl(" + qtString(source) + "));");
             if (propertyBool(c, "autoplay"))
                 w_.line(player + "->play();");
             includes_.insert("QMediaPlayer");
@@ -642,10 +645,10 @@ private:
                 const Component& child = parent.children[i];
                 std::string childVar = emitWidget(child, parentVar, &parent);
                 std::string label = i < items.size() ? items[i] : child.name;
-                w_.line(parentVar + "->addTab(" + childVar + ", " + quoted(label) + ");");
+                w_.line(parentVar + "->addTab(" + childVar + ", " + qtString(label) + ");");
             }
             for (std::size_t i = parent.children.size(); i < items.size(); ++i)
-                w_.line(parentVar + "->addTab(new QWidget(" + parentVar + "), " + quoted(items[i]) + ");");
+                w_.line(parentVar + "->addTab(new QWidget(" + parentVar + "), " + qtString(items[i]) + ");");
             w_.line(parentVar + "->setCurrentIndex(" + intNumber(propertyNumber(parent, "selected", 0)) + ");");
             connectEvent(parent, parentVar, "onChange", "&QTabWidget::currentChanged", "int");
             return;
@@ -653,7 +656,7 @@ private:
 
         std::string host = parentVar;
         if (kind == LayoutKind::Scroll) {
-            std::string content = parentVar + "Content";
+            std::string content = (parentVar == "this" ? std::string("root") : parentVar) + "Content";
             w_.line("auto *" + content + " = new QWidget(" + parentVar + ");");
             w_.line(parentVar + "->setWidget(" + content + ");");
             w_.line(parentVar + "->setWidgetResizable(true);");
@@ -677,7 +680,7 @@ private:
             return;
         }
 
-        std::string layoutVar = parentVar + "Layout";
+        std::string layoutVar = (parentVar == "this" ? std::string("root") : parentVar) + "Layout";
         bool horizontal = kind == LayoutKind::Horizontal || (kind == LayoutKind::Flex && !layout.wrap) || (kind == LayoutKind::Scroll && layout.scroll == ScrollAxis::Horizontal);
 
         if (kind == LayoutKind::Constraint) {
@@ -746,6 +749,17 @@ private:
         w_.line("auto *" + layoutVar + " = new " + (horizontal ? "QHBoxLayout" : "QVBoxLayout") + "(" + host + ");");
         emitMargins(parent, layoutVar);
         w_.bound(layoutVar + "->setSpacing(", intNumber(layout.spacing), ");", target(parent, "layout.spacing", ValueKind::Number));
+        if (parent.type == "dialog" && !propertyString(parent, "title").empty()) {
+            std::string title = names_.name(parent.id + "_title");
+            members.push_back({"QLabel", title});
+            includes_.insert("QLabel");
+            w_.line(title + " = new QLabel(" + host + ");");
+            w_.line(title + "->setObjectName(" + qtString(parent.id + "_title") + ");");
+            boundText(parent, title, "setText", "title");
+            layout::ResolvedTextStyle resolved = layout::resolveTextStyle(parent, &model_);
+            w_.line("applyStyle(" + title + ", {{\"font-size\", u\"" + number(resolved.size) + "px\"_s}, {\"font-weight\", u\"600\"_s}, {\"color\", Theme::color(u\"text\"_s)}});");
+            w_.line(layoutVar + "->addWidget(" + title + ");");
+        }
 
         bool anyFill = std::any_of(parent.children.begin(), parent.children.end(), [&](const Component& child) {
             const SizeSpec& main = horizontal ? child.width : child.height;
@@ -834,7 +848,7 @@ private:
             w_.line(var + " = new " + cls + "(*navigatorPointer(), *statePointer(), " + parentVar + ");");
         else
             w_.line(var + " = new " + cls + "(" + parentVar + ");");
-        w_.line(var + "->setObjectName(" + quoted(c.id) + ");");
+        w_.line(var + "->setObjectName(" + qtString(c.id) + ");");
         if (!c.instanceOf.empty()) {
             emitOverrides(c, var);
         } else {
@@ -877,7 +891,7 @@ private:
                 if (!field->is_string())
                     continue;
                 std::string key = field.key();
-                std::string value = quoted(field->get<std::string>());
+                std::string value = qtString(field->get<std::string>());
                 if (key == "properties.content" || key == "properties.label")
                     w_.line(childVar + "->setText(" + value + ");");
                 else if (key == "properties.placeholder")
@@ -1155,24 +1169,24 @@ private:
         w.line("static const QHash<QString, ThemeTokens> table = {");
         w.indent();
         for (const auto& theme : model.themes) {
-            w.line("{" + quoted(theme.id) + ", {");
+            w.line("{" + qtString(theme.id) + ", {");
             w.indent();
             w.line("{");
             w.indent();
             for (const auto& [name, value] : theme.tokens.colors)
-                w.line("{" + quoted(name) + ", " + quoted(value) + "},");
+                w.line("{" + qtString(name) + ", " + qtString(value) + "},");
             w.dedent();
             w.line("},");
             w.line("{");
             w.indent();
             for (const auto& [name, value] : theme.tokens.spacing)
-                w.line("{" + quoted(name) + ", " + number(value) + "},");
+                w.line("{" + qtString(name) + ", " + number(value) + "},");
             w.dedent();
             w.line("},");
             w.line("{");
             w.indent();
             for (const auto& [name, value] : theme.tokens.radius)
-                w.line("{" + quoted(name) + ", " + number(value) + "},");
+                w.line("{" + qtString(name) + ", " + number(value) + "},");
             w.dedent();
             w.line("},");
             w.dedent();
@@ -1187,7 +1201,7 @@ private:
         w.line("QString &activeId()");
         w.line("{");
         w.indent();
-        w.line("static QString id = " + quoted(model.theme() != nullptr ? model.theme()->id : std::string("light")) + ";");
+        w.line("static QString id = " + qtString(model.theme() != nullptr ? model.theme()->id : std::string("light")) + ";");
         w.line("return id;");
         w.dedent();
         w.line("}");
@@ -1481,7 +1495,7 @@ private:
         w.line("AppWindow::AppWindow(QWidget *parent) : QMainWindow(parent)");
         w.line("{");
         w.indent();
-        w.line("setWindowTitle(" + quoted(config.name.empty() ? model.meta.name : config.name) + ");");
+        w.line("setWindowTitle(" + qtString(config.name.empty() ? model.meta.name : config.name) + ");");
         std::string start = startScreenId(model);
         if (const Screen* startScreen = model.findScreen(start)) {
             int width = static_cast<int>(startScreen->root.width.mode == SizeMode::Fixed ? startScreen->root.width.value : 800);
@@ -1492,10 +1506,10 @@ private:
         w.line("navigator_ = new AppNavigator(this);");
         w.line("setCentralWidget(navigator_);");
         for (const auto& screen : screens) {
-            w.line("navigator_->registerScreen(" + quoted(screen.screen->root.id) + ", [this] { return new " + screen.className + "(*navigator_, *state_, navigator_); });");
+            w.line("navigator_->registerScreen(" + qtString(screen.screen->root.id) + ", [this] { return new " + screen.className + "(*navigator_, *state_, navigator_); });");
         }
         if (!start.empty())
-            w.line("navigator_->navigate(" + quoted(start) + ");");
+            w.line("navigator_->navigate(" + qtString(start) + ");");
         w.dedent();
         w.line("}");
         return w.finish("src/application/AppWindow.cpp");
@@ -2019,7 +2033,7 @@ private:
         if (action == nullptr)
             return;
         if (action->kind == "navigate") {
-            w.line("navigator().navigate(" + quoted(action->target) + ");");
+            w.line("navigator().navigate(" + qtString(action->target) + ");");
         } else if (action->kind == "back") {
             w.line("navigator().back();");
         } else if (action->kind == "setState") {
@@ -2036,7 +2050,7 @@ private:
             std::string url = action->target;
             if (url.empty() && action->value.is_string())
                 url = action->value.get<std::string>();
-            w.line("QDesktopServices::openUrl(QUrl(" + quoted(url) + "));");
+            w.line("QDesktopServices::openUrl(QUrl(" + qtString(url) + "));");
         } else if (action->kind == "handler") {
             std::string handler = "handle" + text::toPascalCase(action->target.empty() ? action->id : action->target);
             customHandlers.insert(handler);

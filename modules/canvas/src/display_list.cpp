@@ -386,7 +386,7 @@ private:
         ResolvedTextStyle style = layout::resolveTextStyle(c, &model_);
         if (c.type == "dialog") {
             std::string title = propertyString(c, "title");
-            if (!title.empty() && c.children.empty()) {
+            if (!title.empty()) {
                 style.weight = 600;
                 label(c.id, Rect{f.x + c.layout.padding.left, f.y + c.layout.padding.top, std::max(0.0, f.width - c.layout.padding.left - c.layout.padding.right), 24}, title, style, 0, 1);
             }

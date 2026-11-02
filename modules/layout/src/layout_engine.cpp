@@ -290,6 +290,24 @@ private:
         return clampSize(value, spec);
     }
 
+    static double headerHeight(const Component& component)
+    {
+        if (component.type == "tabs")
+            return 40;
+        if (component.type == "dialog" && !propertyString(component, "title").empty())
+            return 32;
+        return 0;
+    }
+
+    static bool childShown(const Component& parent, std::size_t index, const Component& child)
+    {
+        if (!child.visible)
+            return false;
+        if (parent.type == "tabs")
+            return static_cast<int>(index) == static_cast<int>(propertyNumber(parent, "selected", 0));
+        return true;
+    }
+
     bool hasChildrenLayout(const Component& component) const
     {
         if (!component.children.empty())
@@ -351,11 +369,11 @@ private:
         const LayoutSpec& layout = component.layout;
         double innerWidth = availableWidth > 0 ? std::max(0.0, availableWidth - layout.padding.left - layout.padding.right) : 0;
         double outerH = layout.padding.left + layout.padding.right;
-        double outerV = layout.padding.top + layout.padding.bottom;
+        double outerV = layout.padding.top + layout.padding.bottom + headerHeight(component);
         std::vector<const Component*> children;
-        for (const auto& child : component.children) {
-            if (child.visible)
-                children.push_back(&child);
+        for (std::size_t i = 0; i < component.children.size(); ++i) {
+            if (childShown(component, i, component.children[i]))
+                children.push_back(&component.children[i]);
         }
         if (children.empty())
             return {outerH, outerV};
@@ -578,9 +596,10 @@ private:
         node.parentIndex = parentIndex;
         node.visible = component.visible;
         const LayoutSpec& layout = component.layout;
-        node.contentFrame = Rect{frame.x + layout.padding.left, frame.y + layout.padding.top,
+        double header = headerHeight(component);
+        node.contentFrame = Rect{frame.x + layout.padding.left, frame.y + layout.padding.top + header,
                                  std::max(0.0, frame.width - layout.padding.left - layout.padding.right),
-                                 std::max(0.0, frame.height - layout.padding.top - layout.padding.bottom)};
+                                 std::max(0.0, frame.height - layout.padding.top - layout.padding.bottom - header)};
         int index = static_cast<int>(result.nodes.size());
         result.index[node.id] = index;
         result.nodes.push_back(node);
@@ -614,6 +633,8 @@ private:
     void placeHidden(const Component& component, const Rect& parent, int parentIndex, int depth, LayoutResult& result)
     {
         place(hold(component), Rect{parent.x, parent.y, 0, 0}, parentIndex, depth, result);
+        for (std::size_t i = result.index[component.id]; i < result.nodes.size(); ++i)
+            result.nodes[i].visible = false;
     }
 
     void placeAbsolute(const Component& parent, const Rect& content, int parentIndex, int depth, LayoutResult& result)
@@ -681,9 +702,10 @@ private:
         };
         std::vector<Item> items;
         std::vector<const Component*> hidden;
+        std::size_t childIndex = 0;
         for (const auto& source : parent.children) {
             const Component& child = hold(source);
-            if (!child.visible) {
+            if (!childShown(parent, childIndex++, child)) {
                 hidden.push_back(&child);
                 continue;
             }
