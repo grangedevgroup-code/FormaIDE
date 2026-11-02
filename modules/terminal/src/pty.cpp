@@ -117,6 +117,7 @@ Result<std::unique_ptr<Pty>> Pty::start(const Options& options, std::function<vo
 
     STARTUPINFOEXW startup{};
     startup.StartupInfo.cb = sizeof startup;
+    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
     startup.lpAttributeList = attributes;
 
     std::string line = quoteWindowsArgument(paths::toUtf8(*program));
