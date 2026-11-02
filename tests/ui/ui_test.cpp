@@ -346,6 +346,48 @@ TEST_F(UiFixture, DesignGenerateEditRegenerateKeepsUserCode)
     EXPECT_NE(disk->find("user marker kept"), std::string::npos);
 }
 
+TEST_F(UiFixture, DesignBuildAndRunTheRealApp)
+{
+    auto& tools = AppContext::instance().tools();
+    if (!tools.detect("cmake").available || !tools.detect("qt").available)
+        GTEST_SKIP() << "needs CMake and Qt";
+    createProject(QStringLiteral("Real App"));
+    auto* controller = window_->controller();
+    const ir::Screen& screen = controller->model()->screens.front();
+    auto component = AppContext::instance().components().instantiate("button", "realAppButton");
+    component.text = "Clicked from the designer";
+    ASSERT_TRUE(controller->editor()->insertComponent(screen.root.id, screen.root.id, -1, component));
+    bool built = false;
+    bool success = false;
+    QObject::connect(controller, &ProjectController::buildFinished, window_.get(), [&](bool ok, int, int, qint64) {
+        built = true;
+        success = ok;
+    });
+    controller->regenerate(true);
+    controller->startBuild(QStringLiteral("debug"));
+    ASSERT_TRUE(waitFor([&] { return built; }, 420000));
+    EXPECT_TRUE(success) << fromQ(window_->output()->text());
+    ASSERT_FALSE(controller->artifacts().empty());
+    capture(*window_, QStringLiteral("build-finished"));
+    window_->showWorkspace(QStringLiteral("build"));
+    capture(*window_, QStringLiteral("workspace-build-after"));
+    bool started = false;
+    int exitCode = -1;
+    bool stopped = false;
+    QObject::connect(controller, &ProjectController::appStarted, window_.get(), [&](const QString&) { started = true; });
+    QObject::connect(controller, &ProjectController::appStopped, window_.get(), [&](int code) {
+        stopped = true;
+        exitCode = code;
+    });
+    controller->runApp(QStringLiteral("debug"));
+    ASSERT_TRUE(waitFor([&] { return started; }, 20000));
+    QTest::qWait(3000);
+    EXPECT_TRUE(controller->appRunning()) << fromQ(window_->output()->text());
+    controller->stopApp();
+    EXPECT_TRUE(waitFor([&] { return stopped; }, 20000));
+    (void)exitCode;
+}
+
 int main(int argc, char** argv)
 {
     if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))

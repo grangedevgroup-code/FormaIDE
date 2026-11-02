@@ -175,7 +175,7 @@ void MainWindow::buildDocks()
         {QStringLiteral("design"), tr("Design"), QStringLiteral("design"), canvas_, {QStringLiteral("screens"), QStringLiteral("layers"), QStringLiteral("components"), QStringLiteral("inspector"), QStringLiteral("problems")}},
         {QStringLiteral("code"), tr("Code"), QStringLiteral("code"), editors_, {QStringLiteral("files"), QStringLiteral("search"), QStringLiteral("git"), QStringLiteral("terminal"), QStringLiteral("output"), QStringLiteral("problems"), QStringLiteral("diff")}},
         {QStringLiteral("project"), tr("Project"), QStringLiteral("project"), projectPage_, {QStringLiteral("files")}},
-        {QStringLiteral("preview"), tr("Preview"), QStringLiteral("preview"), preview_, {QStringLiteral("screens"), QStringLiteral("output")}},
+        {QStringLiteral("preview"), tr("Preview"), QStringLiteral("preview"), preview_, {QStringLiteral("screens")}},
         {QStringLiteral("debug"), tr("Debug"), QStringLiteral("debug"), editors_, {QStringLiteral("files"), QStringLiteral("debug"), QStringLiteral("output"), QStringLiteral("terminal")}},
         {QStringLiteral("build"), tr("Build"), QStringLiteral("build"), build_, {QStringLiteral("output"), QStringLiteral("problems"), QStringLiteral("automation")}},
         {QStringLiteral("assistant"), tr("Assistant"), QStringLiteral("assistant"), editors_, {QStringLiteral("files"), QStringLiteral("assistant"), QStringLiteral("problems")}},
@@ -260,14 +260,14 @@ void MainWindow::buildToolbar()
     buildAction_ = toolbar_->addAction(icon(QStringLiteral("build")), tr("Build"), this, [this] {
         saveEverything();
         controller_->startBuild(configuration_->currentData().toString());
-        docks_[QStringLiteral("output")]->raise();
+        showDock(QStringLiteral("output"));
     });
     buildAction_->setObjectName(QStringLiteral("actionBuild"));
     buildAction_->setShortcut(Qt::CTRL | Qt::Key_B);
     runAction_ = toolbar_->addAction(icon(QStringLiteral("run")), tr("Run"), this, [this] {
         saveEverything();
         controller_->buildAndRun(configuration_->currentData().toString());
-        docks_[QStringLiteral("output")]->raise();
+        showDock(QStringLiteral("output"));
     });
     runAction_->setObjectName(QStringLiteral("actionRun"));
     runAction_->setShortcut(Qt::CTRL | Qt::Key_R);
@@ -449,7 +449,7 @@ void MainWindow::wireController()
         }
     });
     connect(problems_, &ProblemsPanel::countsChanged, this, [this](int errors, int warnings) {
-        statusProblems_->setText(tr("%1 errors, %2 warnings").arg(errors).arg(warnings));
+        statusProblems_->setText(QStringLiteral("%1, %2").arg(errors == 1 ? tr("1 error") : tr("%1 errors").arg(errors), warnings == 1 ? tr("1 warning") : tr("%1 warnings").arg(warnings)));
     });
     connect(git_, &GitPanel::branchChanged, statusBranch_, &QLabel::setText);
     connect(git_, &GitPanel::diffRequested, this, [this](const QString&, const QString& text) {
@@ -494,6 +494,7 @@ void MainWindow::wireController()
         controller_->openFile(toQ(location->file), location->line);
     });
     connect(inspector_, &InspectorPanel::openCodeRequested, canvas_, &CanvasWidget::openCodeRequested);
+    connect(assistant_, &AssistantPanel::setupRequested, this, [this] { openSettings(tr("Assistant")); });
     connect(preview_, &PreviewPanel::runRequested, runAction_, &QAction::trigger);
     connect(screens_, &ScreensPanel::screenActivated, canvas_, &CanvasWidget::centerOnScreen);
 }

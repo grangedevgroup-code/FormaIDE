@@ -42,6 +42,9 @@ public:
     void applyApproved();
     ai::AgentSession* session() const { return session_.get(); }
 
+Q_SIGNALS:
+    void setupRequested();
+
 private:
     void ensureSession();
     void addMessage(const QString& who, const QString& text);
@@ -58,6 +61,7 @@ private:
     QComboBox* provider_;
     QComboBox* autonomy_;
     QLabel* status_;
+    QPushButton* setup_;
     QTextBrowser* conversation_;
     QPlainTextEdit* input_;
     QPushButton* send_;

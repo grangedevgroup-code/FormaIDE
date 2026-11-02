@@ -89,6 +89,10 @@ AssistantPanel::AssistantPanel(ProjectController* controller, EditorArea* editor
     status_->setProperty("role", "muted");
     status_->setWordWrap(true);
     layout->addWidget(status_);
+    setup_ = new QPushButton(tr("Set up the assistant..."), this);
+    setup_->setObjectName(QStringLiteral("assistantSetup"));
+    connect(setup_, &QPushButton::clicked, this, &AssistantPanel::setupRequested);
+    layout->addWidget(setup_);
     auto* split = new QSplitter(Qt::Vertical, this);
     conversation_ = new QTextBrowser(split);
     conversation_->setObjectName(QStringLiteral("assistantConversation"));
@@ -153,6 +157,9 @@ AssistantPanel::AssistantPanel(ProjectController* controller, EditorArea* editor
     changeActions->addWidget(apply_);
     changesLayout->addLayout(changeActions);
     changesBox_->hide();
+    split->setStretchFactor(0, 1);
+    split->setStretchFactor(1, 0);
+    split->setStretchFactor(2, 0);
     layout->addWidget(split, 1);
 
     connect(send_, &QPushButton::clicked, this, [this] {
@@ -238,6 +245,9 @@ void AssistantPanel::reloadProviders()
     int index = provider_->findData(previous);
     if (index >= 0)
         provider_->setCurrentIndex(index);
+    provider_->setVisible(provider_->count() > 0);
+    autonomy_->setVisible(provider_->count() > 0);
+    setup_->setVisible(provider_->count() == 0);
     if (provider_->count() == 0) {
         status_->setText(tr("The assistant is optional and off until you set it up. In Settings, Assistant, pick a local model or add your own API key. Nothing leaves this computer until then."));
         send_->setEnabled(false);
