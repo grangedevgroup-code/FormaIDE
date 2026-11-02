@@ -470,7 +470,7 @@ void MainWindow::wireController()
             statusText_->setText(tr("Generate code first to jump to this component's source"));
             return;
         }
-        controller_->openFile(toQ(location->path), location->line);
+        controller_->openFile(toQ(location->file), location->line);
     });
     connect(inspector_, &InspectorPanel::openCodeRequested, canvas_, &CanvasWidget::openCodeRequested);
     connect(preview_, &PreviewPanel::runRequested, runAction_, &QAction::trigger);

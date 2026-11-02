@@ -72,7 +72,7 @@ void ModelEditor::reset(ApplicationModel model)
     transactionDepth_ = 0;
     ++revision_;
     cleanRevision_ = revision_;
-    emit({ChangeKind::Reset, {}, {}, {}});
+    notifyChange({ChangeKind::Reset, {}, {}, {}});
 }
 
 Component* ModelEditor::rootFor(std::string_view screen)
@@ -136,7 +136,7 @@ void ModelEditor::record(EditOperation operation)
     redoStack_.clear();
 }
 
-void ModelEditor::emit(const ChangeEvent& event)
+void ModelEditor::notifyChange(const ChangeEvent& event)
 {
     auto listeners = listeners_;
     for (const auto& [id, listener] : listeners)
@@ -164,7 +164,7 @@ Status ModelEditor::apply(const EditOperation& operation, bool forward)
                 return parsed.error();
             parsed->root.children = std::move(screen->root.children);
             *screen = std::move(parsed.value());
-            emit({ChangeKind::ComponentChanged, operation.screen, screen->root.id, operation.key});
+            notifyChange({ChangeKind::ComponentChanged, operation.screen, screen->root.id, operation.key});
             return {};
         }
         Component* root = rootFor(operation.screen);
@@ -175,7 +175,7 @@ Status ModelEditor::apply(const EditOperation& operation, bool forward)
             return makeError("ir.missing", "No such component: " + operation.component);
         if (auto status = setComponentField(*component, operation.key, value); !status)
             return status;
-        emit({ChangeKind::ComponentChanged, operation.screen, operation.component, operation.key});
+        notifyChange({ChangeKind::ComponentChanged, operation.screen, operation.component, operation.key});
         return {};
     }
     case Kind::Insert:
@@ -194,13 +194,13 @@ Status ModelEditor::apply(const EditOperation& operation, bool forward)
             int index = std::clamp(operation.index, 0, static_cast<int>(parent->children.size()));
             std::string id = parsed->id;
             parent->children.insert(parent->children.begin() + index, std::move(parsed.value()));
-            emit({ChangeKind::ComponentInserted, operation.screen, id, {}});
+            notifyChange({ChangeKind::ComponentInserted, operation.screen, id, {}});
         } else {
             int index = indexInParent(*parent, operation.component);
             if (index < 0)
                 return makeError("ir.missing", "No such component: " + operation.component);
             parent->children.erase(parent->children.begin() + index);
-            emit({ChangeKind::ComponentRemoved, operation.screen, operation.component, {}});
+            notifyChange({ChangeKind::ComponentRemoved, operation.screen, operation.component, {}});
         }
         return {};
     }
@@ -223,7 +223,7 @@ Status ModelEditor::apply(const EditOperation& operation, bool forward)
         toParent = findComponent(*root, toParentId);
         int index = std::clamp(toIndex, 0, static_cast<int>(toParent->children.size()));
         toParent->children.insert(toParent->children.begin() + index, std::move(moved));
-        emit({ChangeKind::ComponentMoved, operation.screen, operation.component, {}});
+        notifyChange({ChangeKind::ComponentMoved, operation.screen, operation.component, {}});
         return {};
     }
     case Kind::AddScreen:
@@ -236,13 +236,13 @@ Status ModelEditor::apply(const EditOperation& operation, bool forward)
             int index = std::clamp(operation.index, 0, static_cast<int>(model_.screens.size()));
             std::string id = parsed->root.id;
             model_.screens.insert(model_.screens.begin() + index, std::move(parsed.value()));
-            emit({ChangeKind::ScreenAdded, id, {}, {}});
+            notifyChange({ChangeKind::ScreenAdded, id, {}, {}});
         } else {
             auto it = std::find_if(model_.screens.begin(), model_.screens.end(), [&](const Screen& screen) { return screen.root.id == operation.screen; });
             if (it == model_.screens.end())
                 return makeError("ir.missing", "No such screen: " + operation.screen);
             model_.screens.erase(it);
-            emit({ChangeKind::ScreenRemoved, operation.screen, {}, {}});
+            notifyChange({ChangeKind::ScreenRemoved, operation.screen, {}, {}});
         }
         return {};
     }
@@ -260,14 +260,14 @@ Status ModelEditor::apply(const EditOperation& operation, bool forward)
                 return makeError("ir.missing", "No such component definition: " + operation.screen);
             model_.components.erase(it);
         }
-        emit({ChangeKind::ApplicationChanged, {}, {}, "components"});
+        notifyChange({ChangeKind::ApplicationChanged, {}, {}, "components"});
         return {};
     }
     case Kind::SetSection: {
         const Json& value = forward ? operation.after : operation.before;
         if (auto status = assignSection(model_, operation.key, value); !status)
             return status;
-        emit({ChangeKind::ApplicationChanged, {}, {}, operation.key});
+        notifyChange({ChangeKind::ApplicationChanged, {}, {}, operation.key});
         return {};
     }
     }

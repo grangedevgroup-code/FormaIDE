@@ -103,7 +103,7 @@ private:
 
     Status apply(const EditOperation& operation, bool forward);
     void record(EditOperation operation);
-    void emit(const ChangeEvent& event);
+    void notifyChange(const ChangeEvent& event);
     Component* rootFor(std::string_view screen);
     const Component* rootFor(std::string_view screen) const;
 
