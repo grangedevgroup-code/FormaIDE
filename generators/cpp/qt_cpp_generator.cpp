@@ -284,7 +284,6 @@ private:
         double borderWidth = style.borderWidth > 0 ? style.borderWidth : defaultBorderWidth;
         double radius = style.radius > 0 ? style.radius : defaultRadius;
 
-        const bool textual = type == "text" || type == "button" || type == "textinput" || type == "textarea" || type == "dropdown" || type == "checkbox" || type == "radio" || type == "switch";
         bool any = textual || !background.empty() || borderWidth > 0 || radius > 0 || !extraPadding.empty() || !defaultColor.empty()
             || typography.size || typography.weight || typography.color || typography.italic || typography.underline || !typography.font.empty() || !typography.ref.empty();
         if (type == "shape" && propertyString(c, "shape") == "ellipse")
