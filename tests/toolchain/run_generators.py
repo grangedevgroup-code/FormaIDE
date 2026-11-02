@@ -40,7 +40,7 @@ work.mkdir(parents=True)
 for template in wanted:
     name = "T" + template.replace("-", "")
     print(f"== {template}", flush=True)
-    created = subprocess.run([forma, "new", name, "--template", template, "--dir", str(work)], capture_output=True, text=True)
+    created = subprocess.run([forma, "new", name, "--template", template, "--dir", str(work / name)], capture_output=True, text=True)
     if created.returncode != 0:
         print(created.stdout, created.stderr)
         failures.append(template)
