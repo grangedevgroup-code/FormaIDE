@@ -43,11 +43,11 @@ endif()
 
 if(FORMA_BUILD_DESKTOP AND NOT EMSCRIPTEN)
     FetchContent_Declare(scintilla
-        URL https://www.scintilla.org/scintilla569.tgz
+        URL https://downloads.sourceforge.net/project/scintilla/scintilla/5.6.9/scintilla569.tgz https://www.scintilla.org/scintilla569.tgz
         URL_HASH SHA256=1622546ce1d3804b589292f1adae98ad1d87fa8c43bb401edc098adae12dcacb
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_Declare(lexilla
-        URL https://www.scintilla.org/lexilla555.tgz
+        URL https://downloads.sourceforge.net/project/scintilla/lexilla/5.5.5/lexilla555.tgz https://www.scintilla.org/lexilla555.tgz
         URL_HASH SHA256=fa4093ad5c48acf49a6f3eca1b75143a5c824ef1a6f5b0ee59e8c3d6a970f229
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(scintilla lexilla)

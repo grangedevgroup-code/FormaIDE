@@ -10,7 +10,7 @@ The desktop app builds and passes its automated interface tests on Windows, wher
 
 Every generator here is built with its real toolchain in CI on each commit, on every platform it targets. Being built isn't the same as being looked at, so this is what has actually been seen running.
 
-Qt Widgets, WPF, Tkinter, HTML and React were each run and compared by eye against the canvas on Windows. They match in layout, colours and text, with small differences in font rendering. The WPF screenshot was taken with software rendering.
+Qt Widgets, WPF, Tkinter, HTML and React were each run and compared by eye against the canvas on Windows. They match in layout, colours and text, with small differences in font rendering. The WPF screenshot was taken with software rendering. Tkinter draws square buttons, because Tk has no rounded corners.
 
 Jetpack Compose builds a real APK, but that APK has not been run on a phone or emulator yet. PySide6 opens its window under CI's offscreen platform and hasn't been compared by eye. SwiftUI builds on the macOS runner, and it targets macOS only, not iOS, because iOS needs an Xcode project that FormaIDE doesn't write yet.
 
