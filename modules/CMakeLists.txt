@@ -1,2 +1,5 @@
 add_subdirectory(application_model)
 add_subdirectory(layout)
+add_subdirectory(canvas)
+add_subdirectory(design)
+add_subdirectory(code_generation)
