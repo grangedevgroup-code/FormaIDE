@@ -8,6 +8,9 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFontDatabase>
+#include <QGuiApplication>
+#include <QLayout>
+#include <QScreen>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeySequence>
@@ -60,6 +63,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     buildStatusBar();
     wireController();
     onProjectClosed();
+    layout()->invalidate();
+    layout()->activate();
+    QSize available = QGuiApplication::primaryScreen()->availableSize();
+    resize(std::min(1440, available.width() * 95 / 100), std::min(900, available.height() * 95 / 100));
     restoreLayout();
 }
 
