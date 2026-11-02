@@ -4,11 +4,14 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QPainter>
+#include <QDir>
 #include <QPalette>
+#include <QtMath>
 #include <QStyleFactory>
 #include <QStyleHints>
 #include <QSvgRenderer>
 
+#include "forma/core/paths.h"
 #include "forma/resources/resources.h"
 
 namespace forma::ui {
@@ -234,12 +237,12 @@ QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleS
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled { color: %8; background: %10; }
 QLineEdit[role="search"] { padding-left: 6px; }
 QComboBox::drop-down { border: none; width: 18px; }
-QComboBox::down-arrow { image: url(chevron-placeholder); width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid %7; margin-right: 6px; }
+QComboBox::down-arrow { image: url(@CHEVRON@); width: 10px; height: 10px; margin-right: 6px; }
 QComboBox QAbstractItemView { background: %5; border: 1px solid %6; selection-background-color: %13; selection-color: %14; outline: 0; }
 QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button { width: 0; border: none; }
 QCheckBox { spacing: 6px; }
 QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid %3; border-radius: 3px; background: %5; }
-QCheckBox::indicator:checked { background: %16; border-color: %16; image: url(:/forma/check-white.svg); }
+QCheckBox::indicator:checked { background: %16; border-color: %16; image: url(@CHECK@); }
 QCheckBox::indicator:hover { border-color: %16; }
 QRadioButton::indicator { width: 14px; height: 14px; border: 1px solid %3; border-radius: 7px; background: %5; }
 QRadioButton::indicator:checked { border: 4px solid %16; background: %5; }
@@ -314,6 +317,15 @@ QToolButton[role="rail"]:checked { background: %13; color: %14; font-weight: 600
     sheet.replace(QStringLiteral("%3"), css(c.borderStrong));
     sheet.replace(QStringLiteral("%2"), css(c.border));
     sheet.replace(QStringLiteral("%1"), css(c.window));
+    auto cached = [this](const QString& name, const QColor& tint) {
+        QDir directory(QString::fromStdString(paths::toUtf8(paths::userCacheDir() / "theme")));
+        directory.mkpath(QStringLiteral("."));
+        QString file = directory.filePath(QStringLiteral("%1-%2.png").arg(name, tint.name().mid(1)));
+        pixmap(name, 28, tint).save(file);
+        return file;
+    };
+    sheet.replace(QStringLiteral("@CHEVRON@"), cached(QStringLiteral("chevron-down"), c.textMuted));
+    sheet.replace(QStringLiteral("@CHECK@"), cached(QStringLiteral("check"), c.accentText));
     return sheet;
 }
 

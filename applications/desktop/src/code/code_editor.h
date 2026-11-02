@@ -33,6 +33,7 @@ public:
     const editor::LanguageDefinition* language() const { return language_; }
     QString text() const;
     void setText(const QString& text, bool keepUndo = false);
+    void applyText(const QString& text);
     void insertAtCursor(const QString& text);
     bool isModified() const;
     void markSaved();

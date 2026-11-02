@@ -54,6 +54,10 @@ for path in sorted(glob.glob(os.path.join(lexilla, "lexers", "*.cxx"))):
         if table:
             result[name] = {str(k): v for k, v in sorted(table.items())}
 
+for alias, source in {"cppnocase": "cpp", "phpscript": "hypertext", "literatehaskell": "haskell"}.items():
+    if source in result:
+        result[alias] = result[source]
+
 with open(output, "w", newline="\n") as f:
     json.dump(result, f, indent=0, sort_keys=True)
     f.write("\n")

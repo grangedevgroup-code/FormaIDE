@@ -244,6 +244,17 @@ void CodeEditor::setText(const QString& value, bool keepUndo)
     updateLineMargin();
 }
 
+void CodeEditor::applyText(const QString& value)
+{
+    QByteArray bytes = value.toUtf8();
+    sptr_t position = editor_->send(SCI_GETCURRENTPOS);
+    sptr_t firstLine = editor_->send(SCI_GETFIRSTVISIBLELINE);
+    editor_->send(SCI_TARGETWHOLEDOCUMENT);
+    editor_->send(SCI_REPLACETARGET, static_cast<uptr_t>(bytes.size()), reinterpret_cast<sptr_t>(bytes.constData()));
+    editor_->send(SCI_GOTOPOS, static_cast<uptr_t>(std::min<sptr_t>(position, editor_->send(SCI_GETLENGTH))));
+    editor_->send(SCI_SETFIRSTVISIBLELINE, static_cast<uptr_t>(firstLine));
+}
+
 void CodeEditor::insertAtCursor(const QString& value)
 {
     QByteArray bytes = value.toUtf8();

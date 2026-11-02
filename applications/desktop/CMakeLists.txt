@@ -50,12 +50,12 @@ target_link_libraries(forma_desktop PUBLIC
     forma_scintilla forma_lexilla
     forma::project forma::generators forma::resources forma::canvas forma::design forma::layout
     forma::code_editor forma::terminal forma::version_control forma::lsp forma::debugger forma::ai forma::plugins forma::assets)
-target_compile_definitions(forma_desktop PUBLIC QT_NO_KEYWORDS)
+target_compile_definitions(forma_desktop PUBLIC QT_NO_KEYWORDS FORMA_VERSION="${PROJECT_VERSION}")
 forma_apply_warnings(forma_desktop)
 
-if(WIN32)
+if(WIN32 AND EXISTS "${PROJECT_SOURCE_DIR}/packaging/windows/formaide.rc")
     set(app_icon_resource "${PROJECT_SOURCE_DIR}/packaging/windows/formaide.rc")
-elseif(APPLE)
+elseif(APPLE AND EXISTS "${PROJECT_SOURCE_DIR}/packaging/macos/FormaIDE.icns")
     set(app_icon_resource "${PROJECT_SOURCE_DIR}/packaging/macos/FormaIDE.icns")
     set_source_files_properties("${app_icon_resource}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()

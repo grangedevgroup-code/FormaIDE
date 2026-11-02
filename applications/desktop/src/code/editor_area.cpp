@@ -272,8 +272,7 @@ bool EditorArea::restoreBuffer(const QString& path, const QString& content)
     CodeEditor* editor = openFile(path);
     if (editor == nullptr)
         return false;
-    editor->setText(content, true);
-    editor->scintilla()->send(2019);
+    editor->applyText(content);
     return true;
 }
 
@@ -550,7 +549,7 @@ void EditorArea::renameSymbol()
                     continue;
                 CodeEditor* editor = self->openFile(relative);
                 if (editor != nullptr)
-                    editor->setText(toQ(lsp::applyTextEdits(fromQ(editor->text()), edits)), true);
+                    editor->applyText(toQ(lsp::applyTextEdits(fromQ(editor->text()), edits)));
             }
             self->controller_->reportStatus(tr("Renamed in %n file(s). Review and save.", nullptr, static_cast<int>(copy.files.size())));
         }, Qt::QueuedConnection);
@@ -572,7 +571,7 @@ void EditorArea::formatDocument()
             auto copy = std::move(edits.value());
             QMetaObject::invokeMethod(qApp, [guard, copy] {
                 if (guard)
-                    guard->setText(toQ(lsp::applyTextEdits(fromQ(guard->text()), copy)), true);
+                    guard->applyText(toQ(lsp::applyTextEdits(fromQ(guard->text()), copy)));
             }, Qt::QueuedConnection);
         });
         return;
