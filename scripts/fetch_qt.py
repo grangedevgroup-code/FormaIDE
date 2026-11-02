@@ -6,6 +6,8 @@ Prints the kit's install prefix on the last line.
 import hashlib
 import os
 import platform
+import re
+import shutil
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -55,9 +57,24 @@ for name in WANT:
             z.extractall(OUT)
         os.remove(path)
 
+prefix = None
 for directory, _, files in os.walk(OUT):
     if "Qt6Config.cmake" in files:
-        print(os.path.abspath(os.path.join(directory, "..", "..", "..")))
+        prefix = os.path.abspath(os.path.join(directory, "..", "..", ".."))
         break
-else:
+if prefix is None:
     sys.exit("Qt6Config.cmake was not found after unpacking")
+
+if SYSTEM == "Linux":
+    library_dir = os.path.join(prefix, "lib")
+    for directory, _, files in os.walk(OUT):
+        for file in files:
+            match = re.match(r"(libicu\w+\.so\.\d+)(\.\d+)*$", file)
+            if not match:
+                continue
+            source = os.path.join(directory, file)
+            target = os.path.join(library_dir, match.group(1))
+            if not os.path.exists(target):
+                shutil.copy2(source, target)
+                print("placed", target, flush=True)
+print(prefix)
