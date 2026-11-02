@@ -3,6 +3,7 @@
 #include <QButtonGroup>
 #include <QDockWidget>
 #include <QMainWindow>
+#include <QPointer>
 #include <map>
 
 #include "ai/assistant_panel.h"
@@ -16,6 +17,7 @@
 #include "preview/preview_panel.h"
 #include "project/project_page.h"
 #include "shell/dialogs.h"
+#include "shell/setup_dialog.h"
 #include "terminal/terminal_widget.h"
 
 class QComboBox;
@@ -44,6 +46,15 @@ public:
     GitPanel* git() const { return git_; }
     DebugPanel* debugPanel() const { return debug_; }
     WelcomePage* welcome() const { return welcome_; }
+    InspectorPanel* inspector() const { return inspector_; }
+    LayersPanel* layers() const { return layers_; }
+    SetupDialog* setupDialog() const { return setup_; }
+    void openSetup(const QStringList& tools = {}, const QString& reason = {});
+    void refreshDevices();
+    QString runStatusText() const;
+    bool bottomPanelOpen() const;
+    void toggleBottomPanel();
+    void commandPalette();
 
     void showWorkspace(const QString& id);
     QString workspace() const { return workspace_; }
@@ -60,6 +71,8 @@ private:
         QString iconName;
         QWidget* center = nullptr;
         QStringList docks;
+        QStringList bottom;
+        bool bottomOpen = false;
         QAbstractButton* button = nullptr;
     };
 
@@ -67,7 +80,6 @@ private:
     void buildCentral();
     void buildDocks();
     void buildToolbar();
-    void buildRail();
     void buildMenus();
     void buildStatusBar();
     void wireController();
@@ -76,7 +88,10 @@ private:
     void updateTargets();
     void onProjectOpened();
     void onProjectClosed();
-    void newProject();
+    void newProject(const QString& templateId = QString());
+    void setRunStatus(const QString& text, const QString& state = QString());
+    void setAssistantOpen(bool open);
+    void checkToolsSummary();
     void openProject();
     void importFolder();
     void openSettings(const QString& page = {});
@@ -93,7 +108,6 @@ private:
     ProjectController* controller_;
     QStackedWidget* pages_;
     QStackedWidget* center_;
-    QWidget* rail_;
     QWidget* mainPage_;
     WelcomePage* welcome_;
     CanvasWidget* canvas_;
@@ -119,12 +133,21 @@ private:
     std::vector<Workspace> workspaces_;
     QString workspace_;
     QByteArray pendingState_;
-    QButtonGroup* railGroup_;
+    QButtonGroup* modeGroup_;
     QToolBar* toolbar_;
-    QToolBar* railBar_;
     QLabel* projectLabel_;
+    QLabel* runStatus_;
     QComboBox* target_;
+    QComboBox* device_;
     QComboBox* configuration_;
+    QToolButton* panelButton_;
+    QToolButton* assistantButton_;
+    QPointer<SetupDialog> setup_;
+    bool assistantOpen_ = false;
+    bool diffOpen_ = false;
+    bool updatingDevices_ = false;
+    std::vector<QMenu*> menus_;
+    std::vector<std::pair<QAction*, QString>> themedActions_;
     QAction* buildAction_;
     QAction* runAction_;
     QAction* stopAction_;

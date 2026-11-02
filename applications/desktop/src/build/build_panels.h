@@ -56,6 +56,7 @@ public:
 
 Q_SIGNALS:
     void runRequested();
+    void setupRequested();
 
 private:
     void refreshConfigurations();

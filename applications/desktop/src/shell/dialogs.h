@@ -24,9 +24,13 @@ class WelcomePage : public QWidget {
 public:
     explicit WelcomePage(QWidget* parent = nullptr);
     void refresh();
+    void setToolsSummary(int ready, int total);
 
 Q_SIGNALS:
     void newRequested();
+    void templateRequested(const QString& id);
+    void toolsRequested();
+    void settingsRequested();
     void openRequested();
     void importRequested();
     void recentRequested(const QString& path);
@@ -34,6 +38,7 @@ Q_SIGNALS:
 private:
     QListWidget* recents_;
     QLabel* emptyRecents_;
+    QLabel* toolsSummary_;
 };
 
 class NewProjectDialog : public QDialog {
@@ -45,6 +50,7 @@ public:
     void selectTemplate(const QString& id);
     void setProjectName(const QString& name);
     void setLocation(const QString& path);
+    QStringList toolsToInstall() const;
 
 protected:
     void accept() override;
@@ -59,6 +65,8 @@ private:
     QLineEdit* bundle_;
     QLabel* fullPath_;
     QCheckBox* git_;
+    QCheckBox* installMissing_;
+    QStringList missingTools_;
     QPushButton* create_;
     bool bundleEdited_ = false;
 };

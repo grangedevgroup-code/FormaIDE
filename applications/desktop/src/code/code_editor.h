@@ -63,6 +63,9 @@ public:
     void setDiagnostics(const std::vector<lsp::Diagnostic>& diagnostics);
     void showCompletions(const std::vector<lsp::CompletionItem>& items);
     void showCallTip(const QString& text);
+    void showWordCompletions();
+    bool completionListVisible() const;
+    void setReadOnly(bool on);
     lsp::Position cursorPosition() const;
     void setBreakpoints(const std::set<int>& lines);
     std::set<int> breakpoints() const { return breakpoints_; }
@@ -85,6 +88,7 @@ private:
     void updateLineMargin();
     void onCharacterAdded(int character);
     void autoIndent();
+    bool autoClosePair(int character);
     std::string rawText() const;
 
     ScintillaEditBase* editor_;

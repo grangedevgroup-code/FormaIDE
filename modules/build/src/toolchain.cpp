@@ -434,8 +434,14 @@ ToolInfo ToolchainDetector::probe(std::string_view id)
             std::regex pattern(spec->versionPattern);
             if (std::regex_search(output, match, pattern))
                 info.version = match[1];
+            while (!info.version.empty() && info.version.back() == '.')
+                info.version.pop_back();
         }
         break;
+    }
+    if (id == "emulator" && info.available && androidVirtualDevices(*this).empty()) {
+        info.available = false;
+        info.note = "The emulator is installed but there's no virtual phone yet.";
     }
     return info;
 }

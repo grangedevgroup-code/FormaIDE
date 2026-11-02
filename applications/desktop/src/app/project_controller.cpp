@@ -11,6 +11,7 @@
 #include "forma/core/log.h"
 #include "forma/core/paths.h"
 #include "forma/core/text.h"
+#include "forma/ir/catalog.h"
 #include "forma/ir/validation.h"
 
 namespace forma::ui {
@@ -161,6 +162,53 @@ void ProjectController::setCurrentScreen(const QString& id)
     Q_EMIT selectionChanged();
 }
 
+QString ProjectController::addScreen(const QString& name)
+{
+    if (!session_)
+        return {};
+    ir::ModelEditor* modelEditor = editor();
+    const auto& screens = model()->screens;
+    double width = 393;
+    double height = 852;
+    double right = 0;
+    double top = 0;
+    std::string device;
+    const ir::Screen* last = nullptr;
+    for (const auto& screen : screens) {
+        double w = screen.root.width.mode == ir::SizeMode::Fixed ? screen.root.width.value : width;
+        if (last == nullptr || screen.canvas.x + w + 120 > right) {
+            right = screen.canvas.x + w + 120;
+            top = screen.canvas.y;
+            last = &screen;
+        }
+    }
+    if (last != nullptr) {
+        if (last->root.width.mode == ir::SizeMode::Fixed)
+            width = last->root.width.value;
+        if (last->root.height.mode == ir::SizeMode::Fixed)
+            height = last->root.height.value;
+        device = last->device;
+    }
+    QString chosen = name;
+    if (chosen.isEmpty()) {
+        int number = static_cast<int>(screens.size()) + 1;
+        chosen = tr("Screen %1").arg(number);
+    }
+    ir::Screen screen = ir::makeScreen(modelEditor->uniqueScreenId(fromQ(chosen)), fromQ(chosen), width, height);
+    screen.canvas.x = right;
+    screen.canvas.y = top;
+    screen.device = device;
+    auto added = modelEditor->addScreen(screen);
+    if (!added) {
+        reportStatus(toQ(added.error().message));
+        return {};
+    }
+    QString id = toQ(*added);
+    setCurrentScreen(id);
+    setSelection({id});
+    return id;
+}
+
 void ProjectController::setSelection(const QStringList& ids)
 {
     if (ids == selection_)
@@ -297,7 +345,7 @@ void ProjectController::startBuild(const QString& configuration, std::function<v
     auto& app = AppContext::instance();
     const build::IBuildProvider* provider = session_->buildProviderFor(app.builders(), *target());
     if (provider == nullptr) {
-        Q_EMIT noBuildSystem();
+        Q_EMIT noBuildSystem(static_cast<bool>(then));
         return;
     }
     build::BuildRequest request = requestFor(configuration);
@@ -408,7 +456,7 @@ void ProjectController::runApp(const QString& configuration)
     auto& app = AppContext::instance();
     const build::IBuildProvider* provider = session_->buildProviderFor(app.builders(), *target());
     if (provider == nullptr) {
-        Q_EMIT noBuildSystem();
+        Q_EMIT noBuildSystem(true);
         return;
     }
     if (isAndroidProject()) {
@@ -423,6 +471,20 @@ void ProjectController::runApp(const QString& configuration)
     QString commandLine = toQ(command->program);
     for (const auto& argument : command->arguments)
         commandLine += QLatin1Char(' ') + toQ(argument);
+    if (target()->generator.empty()) {
+        QStringList parts;
+        for (const auto& part : QStringList{toQ(command->program)} + [&] {
+                 QStringList rest;
+                 for (const auto& argument : command->arguments)
+                     rest << toQ(argument);
+                 return rest;
+             }()) {
+            parts << (part.contains(QLatin1Char(' ')) ? QLatin1Char('"') + part + QLatin1Char('"') : part);
+        }
+        Q_EMIT automationLogged(tr("Run"), commandLine);
+        Q_EMIT runInTerminal(parts.join(QLatin1Char(' ')));
+        return;
+    }
     QPointer<ProjectController> self(this);
     auto deliver = [self](std::string_view data, bool isError) {
         QString text = QString::fromUtf8(data.data(), static_cast<qsizetype>(data.size()));
@@ -508,10 +570,14 @@ void ProjectController::noticeUrl(const QString& text)
         return;
     outputTail_ += text;
     outputTail_ = outputTail_.right(2000);
-    static const QRegularExpression pattern(QStringLiteral("https?://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?[^\\s\\x1b]*"));
+    static const QRegularExpression pattern(QStringLiteral("https?://(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[::1?\\])(:[0-9]+)?[^\\s\\x1b)\"']*"));
     QRegularExpressionMatch match = pattern.match(outputTail_);
     if (match.hasMatch()) {
         lastRunUrl_ = match.captured(0);
+        lastRunUrl_.replace(QStringLiteral("0.0.0.0"), QStringLiteral("localhost"));
+        lastRunUrl_.replace(QStringLiteral("[::]"), QStringLiteral("localhost"));
+        while (lastRunUrl_.endsWith(QLatin1Char('.')) || lastRunUrl_.endsWith(QLatin1Char(',')))
+            lastRunUrl_.chop(1);
         Q_EMIT runUrlFound(lastRunUrl_);
     }
 }

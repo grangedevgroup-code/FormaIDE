@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <deque>
 #include <memory>
+#include <optional>
 
 #include "forma/build/setup.h"
 
@@ -31,9 +32,11 @@ public:
     QString logText() const;
     int readyStacks() const { return readyStacks_; }
     int totalStacks() const { return totalStacks_; }
+    bool ready() const { return ready_; }
 
 Q_SIGNALS:
     void toolsChanged();
+    void refreshed();
     void installFinished(bool success);
 
 protected:
@@ -41,6 +44,7 @@ protected:
 
 private:
     void refresh();
+    void populate();
     void describeCurrent();
     void startNext();
     void log(const QString& text, bool isError = false);
@@ -60,6 +64,10 @@ private:
     std::optional<build::InstallPlan> pendingPlan_;
     QString current_;
     bool anyFailed_ = false;
+    bool ready_ = false;
+    QString manualUrl_;
+    QStringList pendingTools_;
+    QString pendingReason_;
     int readyStacks_ = 0;
     int totalStacks_ = 0;
 };

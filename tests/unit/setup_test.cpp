@@ -5,6 +5,11 @@
 
 #include "forma/build/setup.h"
 #include "forma/core/paths.h"
+#include "forma/core/process.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 using namespace forma;
 using namespace forma::build;
@@ -53,6 +58,11 @@ TEST(Setup, InstallCommandsAreParsedWithoutAShell)
     ASSERT_EQ(pip.steps.size(), 1u);
     EXPECT_EQ(pip.steps[0].process.program, "python");
     EXPECT_EQ(pip.steps[0].process.arguments.front(), "-m");
+
+    InstallPlan tool = planCommandInstall("Server", "dotnet tool install --global csharp-ls");
+    ASSERT_EQ(tool.steps.size(), 1u);
+    EXPECT_EQ(tool.steps[0].process.arguments[1], "update");
+    EXPECT_EQ(tool.steps[0].process.arguments.back(), "https://api.nuget.org/v3/index.json");
 
     EXPECT_FALSE(planCommandInstall("Server", "Install it from the website").automatic());
     EXPECT_FALSE(planCommandInstall("Server", "rm -rf /").automatic());
@@ -170,6 +180,23 @@ TEST(Setup, RefreshingTheEnvironmentKeepsThePathAndAddsManagedTools)
         EXPECT_NE(after.find(firstEntry), std::string::npos);
     }
 }
+
+#if defined(_WIN32)
+TEST(Setup, AppExecutionAliasesCountAsPrograms)
+{
+    auto localAppData = paths::env("LOCALAPPDATA");
+    if (!localAppData)
+        GTEST_SKIP();
+    std::filesystem::path alias = paths::fromUtf8(*localAppData) / "Microsoft" / "WindowsApps" / "winget.exe";
+    if (GetFileAttributesW(alias.c_str()) == INVALID_FILE_ATTRIBUTES)
+        GTEST_SKIP() << "winget isn't installed here";
+    auto found = findExecutable("winget");
+    ASSERT_TRUE(found.has_value());
+    auto result = runProcess(ProcessSpec{paths::toUtf8(*found), {"--version"}}, std::chrono::seconds(30));
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->exitCode, 0);
+}
+#endif
 
 TEST(Setup, AndroidPackageComesFromTheGradleFile)
 {

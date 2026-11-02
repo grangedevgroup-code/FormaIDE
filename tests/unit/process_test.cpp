@@ -153,6 +153,14 @@ TEST(Process, BatchArgumentsCannotInjectCommands)
     EXPECT_FALSE(runProcess(newline).ok());
 }
 
+TEST(Process, BatchArgumentsKeepTheirDelimiters)
+{
+    std::string line = buildWindowsBatchCommand("tool.bat", {"system-images;android-36;x86_64", "--root=C:\\Sdk\\", "plain"});
+    EXPECT_NE(line.find("^\"system-images^;android-36^;x86_64^\""), std::string::npos) << line;
+    EXPECT_NE(line.find("^\"--root^=C:\\Sdk\\\\^\""), std::string::npos) << line;
+    EXPECT_NE(line.find(" plain"), std::string::npos) << line;
+}
+
 TEST(Process, QuotesFollowWindowsRules)
 {
     EXPECT_EQ(quoteWindowsArgument("plain"), "plain");

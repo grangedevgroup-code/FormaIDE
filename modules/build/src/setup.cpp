@@ -1,7 +1,9 @@
 #include "forma/build/setup.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
+#include <functional>
 #include <regex>
 #include <set>
 
@@ -128,6 +130,24 @@ SetupStep verifyStep(const fs::path& file, std::string expected)
     return step;
 }
 
+std::string systemTool(const char* name)
+{
+#if defined(_WIN32)
+    return paths::toUtf8(paths::fromUtf8(paths::env("SystemRoot").value_or("C:\\Windows")) / "System32" / (std::string(name) + ".exe"));
+#else
+    return name;
+#endif
+}
+
+std::string pythonProgram()
+{
+    if (findExecutable("python"))
+        return "python";
+    if (findExecutable("python3"))
+        return "python3";
+    return "python";
+}
+
 void addDownload(InstallPlan& plan, const Download& download, const fs::path& archive, const fs::path& destination)
 {
     SetupStep prepare;
@@ -141,15 +161,16 @@ void addDownload(InstallPlan& plan, const Download& download, const fs::path& ar
         return {};
     };
     plan.steps.push_back(std::move(prepare));
-    plan.steps.push_back(commandStep("Download", "curl", {"-fL", "--retry", "3", "--progress-bar", "-o", paths::toUtf8(archive), download.url}));
+    plan.steps.push_back(commandStep("Download", systemTool("curl"), {"-fL", "--retry", "3", "--progress-bar", "-o", paths::toUtf8(archive), download.url}));
     plan.steps.push_back(verifyStep(archive, download.sha256));
 #if defined(_WIN32)
-    plan.steps.push_back(commandStep("Unpack", "tar", {"-xf", paths::toUtf8(archive), "-C", paths::toUtf8(destination)}));
+    plan.steps.push_back(commandStep("Unpack", systemTool("tar"), {"-xf", paths::toUtf8(archive), "-C", paths::toUtf8(destination)}));
 #else
     plan.steps.push_back(commandStep("Unpack", "unzip", {"-qo", paths::toUtf8(archive), "-d", paths::toUtf8(destination)}));
 #endif
 }
 
+#if !defined(_WIN32) && !defined(__APPLE__)
 std::optional<std::string> linuxPackageManager(std::vector<std::string>& command)
 {
     if (findExecutable("apt-get")) {
@@ -170,6 +191,7 @@ std::optional<std::string> linuxPackageManager(std::vector<std::string>& command
     }
     return std::nullopt;
 }
+#endif
 
 struct PackageNames {
     const char* winget;
@@ -322,8 +344,9 @@ void planAcceleration(InstallPlan& plan, ToolchainDetector& tools)
     addAndroidCommandLineTools(plan, tools, sdk);
     plan.steps.push_back(sdkManagerStep(tools, sdk, "Download the hypervisor driver", {"extras;google;Android_Emulator_Hypervisor_Driver"}));
     fs::path script = sdk / "extras" / "google" / "Android_Emulator_Hypervisor_Driver" / "silent_install.bat";
-    plan.steps.push_back(commandStep("Install the hypervisor driver", "powershell",
-                                     {"-NoProfile", "-NonInteractive", "-Command", "$p = Start-Process -FilePath '" + paths::toUtf8(script) + "' -Verb RunAs -Wait -PassThru; exit $p.ExitCode"}));
+    SetupStep driver = commandStep("Install the hypervisor driver", "powershell",
+                                   {"-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference = 'Stop'; $p = Start-Process -FilePath '" + paths::toUtf8(script) + "' -WorkingDirectory '" + paths::toUtf8(script.parent_path()) + "' -Verb RunAs -Wait -PassThru; exit $p.ExitCode"});
+    plan.steps.push_back(std::move(driver));
 #elif defined(__APPLE__)
     (void)tools;
     plan.note = "macOS already has what the emulator needs.";
@@ -350,8 +373,8 @@ void planQt(InstallPlan& plan)
         return paths::writeFileAtomic(script, std::string(data->data(), data->size()));
     };
     plan.steps.push_back(std::move(prepare));
-    plan.steps.push_back(commandStep("Get the archive reader", "python", {"-m", "pip", "install", "--user", "--upgrade", "py7zr"}));
-    plan.steps.push_back(commandStep("Install Qt", "python", {paths::toUtf8(script), paths::toUtf8(destination), kQtVersion}));
+    plan.steps.push_back(commandStep("Get the archive reader", pythonProgram(), {"-m", "pip", "install", "--user", "--upgrade", "py7zr"}));
+    plan.steps.push_back(commandStep("Install Qt", pythonProgram(), {paths::toUtf8(script), paths::toUtf8(destination), kQtVersion}));
 }
 
 void planMsvc(InstallPlan& plan)
@@ -453,8 +476,13 @@ InstallPlan planCommandInstall(std::string_view name, std::string_view command)
         plan.dependencies.push_back(runner->second);
     std::string program = parts.front();
     std::vector<std::string> arguments(parts.begin() + 1, parts.end());
+    if (program == "dotnet" && arguments.size() >= 2 && arguments[0] == "tool" && arguments[1] == "install") {
+        arguments[1] = "update";
+        arguments.emplace_back("--add-source");
+        arguments.emplace_back("https://api.nuget.org/v3/index.json");
+    }
     if (program == "pip") {
-        program = "python";
+        program = pythonProgram();
         arguments.insert(arguments.begin(), {"-m", "pip"});
     }
     SetupStep step = commandStep("Install " + plan.name, std::move(program), std::move(arguments));
@@ -573,7 +601,6 @@ InstallPlan planToolInstall(std::string_view toolId, ToolchainDetector& tools)
     if (id == "csharp-ls") {
         plan = planCommandInstall("C# language server", "dotnet tool install --global csharp-ls");
         plan.id = id;
-        plan.steps.back().successCodes = {0, 1};
         return plan;
     }
     if (id == "gopls") {

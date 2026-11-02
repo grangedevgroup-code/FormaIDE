@@ -111,6 +111,7 @@ void Theme::refresh()
         dark = application_->styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     dark_ = dark;
     colors_ = dark ? darkColors() : lightColors();
+    iconCache_.clear();
     if (application_ != nullptr) {
         QPalette palette;
         palette.setColor(QPalette::Window, colors_.panel);
@@ -180,6 +181,10 @@ QPixmap Theme::pixmap(const QString& name, int size, const QColor& tint, qreal r
 
 QIcon Theme::icon(const QString& name, const QColor& tint) const
 {
+    QString key = name + QLatin1Char('|') + (tint.isValid() ? tint.name(QColor::HexArgb) : QString());
+    auto cached = iconCache_.constFind(key);
+    if (cached != iconCache_.constEnd())
+        return *cached;
     QIcon output;
     for (int size : {16, 20, 24, 32}) {
         for (qreal ratio : {1.0, 2.0}) {
@@ -191,6 +196,7 @@ QIcon Theme::icon(const QString& name, const QColor& tint) const
             }
         }
     }
+    iconCache_.insert(key, output);
     return output;
 }
 
@@ -263,7 +269,7 @@ QTabWidget::pane { border: none; }
 QTabBar { background: %10; qproperty-drawBase: 0; }
 QTabBar::tab { background: transparent; color: %7; padding: 6px 10px; border: none; border-bottom: 1px solid transparent; font-weight: 500; }
 QTabBar::tab:hover { color: %4; background: %11; }
-QTabBar::tab:selected { color: %4; font-weight: 600; border-bottom: 1px solid %4; }
+QTabBar::tab:selected { color: %4; border-bottom: 1px solid %4; }
 QTabBar::close-button { subcontrol-position: right; margin-left: 4px; }
 QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; }
 QDockWidget::title { background: %10; padding: 4px 8px; border-bottom: 1px solid %2; }
@@ -317,7 +323,7 @@ QLabel[status="ok"] { color: %21; }
 QLabel[status="bad"] { color: %9; }
 QFrame[role="floating"] { background: %5; border: 1px solid %2; border-radius: 8px; }
 QFrame[role="floating"] QToolButton { padding: 6px; border-radius: 5px; }
-QFrame[role="floating"] QToolButton:checked { background: %16; color: %17; }
+QFrame[role="floating"] QToolButton:checked { background: %13; }
 QFrame[role="floating"] QLabel { color: %7; padding: 0 2px; }
 QFrame[role="sep"] { background: %2; min-width: 1px; max-width: 1px; margin: 4px 3px; }
 QToolButton[role="tile"] { padding: 8px 2px 6px 2px; border-radius: 6px; color: %7; font-size: 8pt; }

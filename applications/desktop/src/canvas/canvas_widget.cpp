@@ -5,12 +5,15 @@
 #include <QContextMenuEvent>
 #include <QDrag>
 #include <QElapsedTimer>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
+#include <QSignalBlocker>
 #include <QWheelEvent>
 #include <cmath>
 
@@ -25,6 +28,7 @@ namespace {
 
 constexpr int kRulerSize = 20;
 constexpr double kHandleSize = 7;
+constexpr double kSideHandleRoom = 40;
 
 QRectF qrect(const layout::Rect& rect)
 {
@@ -60,12 +64,199 @@ CanvasWidget::CanvasWidget(ProjectController* controller, QWidget* parent) : QWi
         update();
     });
     connect(&Theme::instance(), &Theme::changed, this, QOverload<>::of(&CanvasWidget::update));
+    buildChrome();
+}
+
+void CanvasWidget::buildChrome()
+{
+    toolBar_ = new QFrame(this);
+    toolBar_->setObjectName(QStringLiteral("canvasToolbar"));
+    toolBar_->setProperty("role", "floating");
+    auto* tools = new QHBoxLayout(toolBar_);
+    tools->setContentsMargins(5, 5, 5, 5);
+    tools->setSpacing(2);
+    auto addButton = [this](QFrame* holder, QHBoxLayout* row, const QString& name, const QString& iconName, const QString& tip) {
+        auto* button = new QToolButton(holder);
+        button->setObjectName(QStringLiteral("tool.") + name);
+        button->setIcon(icon(iconName));
+        button->setIconSize(QSize(18, 18));
+        button->setToolTip(tip);
+        button->setFocusPolicy(Qt::NoFocus);
+        row->addWidget(button);
+        chromeIcons_.emplace_back(button, iconName);
+        return button;
+    };
+    auto addSeparator = [](QFrame* holder, QHBoxLayout* row) {
+        auto* line = new QFrame(holder);
+        line->setProperty("role", "sep");
+        row->addWidget(line);
+    };
+    auto addTool = [&](const QString& key, const QString& name, const QString& iconName, const QString& tip, std::function<void()> action) {
+        QToolButton* button = addButton(toolBar_, tools, name, iconName, tip);
+        button->setCheckable(true);
+        toolButtons_[key] = button;
+        connect(button, &QToolButton::clicked, this, [this, action] {
+            action();
+            updateChrome();
+        });
+    };
+    addTool(QStringLiteral("@select"), QStringLiteral("move"), QStringLiteral("pointer"), tr("Move and select (V)"), [this] { setTool(Tool::Select); });
+    addTool(QStringLiteral("@pan"), QStringLiteral("hand"), QStringLiteral("hand"), tr("Hand: drag to move around (H, or hold Space)"), [this] { setTool(Tool::Pan); });
+    addSeparator(toolBar_, tools);
+    struct Insertable {
+        const char* type;
+        const char* name;
+        const char* iconName;
+        QString tip;
+    };
+    const std::vector<Insertable> insertables = {
+        {"frame", "frame", "frame", tr("Frame (F): click or drag on a screen")},
+        {"text", "text", "text", tr("Text (T): click or drag on a screen")},
+        {"shape", "shape", "shape", tr("Shape (R): click or drag on a screen")},
+        {"image", "image", "image", tr("Image: click or drag on a screen")},
+        {"button", "button", "button", tr("Button (B): click or drag on a screen")},
+        {"textinput", "input", "input", tr("Text input (I): click or drag on a screen")},
+    };
+    for (const auto& item : insertables) {
+        QString type = QString::fromLatin1(item.type);
+        addTool(type, QString::fromLatin1(item.name), QString::fromLatin1(item.iconName), item.tip, [this, type] {
+            if (insertType_ == type)
+                setTool(Tool::Select);
+            else
+                beginInsert(type);
+        });
+    }
+    QToolButton* more = addButton(toolBar_, tools, QStringLiteral("more"), QStringLiteral("components"), tr("All components"));
+    more->setPopupMode(QToolButton::InstantPopup);
+    auto* moreMenu = new QMenu(more);
+    connect(moreMenu, &QMenu::aboutToShow, this, [this, moreMenu] {
+        moreMenu->clear();
+        const auto& catalog = AppContext::instance().components();
+        for (const auto& category : catalog.categories()) {
+            QMenu* group = moreMenu->addMenu(toQ(category));
+            for (const auto& schema : catalog.all()) {
+                if (schema.category != category)
+                    continue;
+                QString type = toQ(schema.type);
+                group->addAction(icon(toQ(schema.icon)), toQ(schema.label), this, [this, type] { beginInsert(type); });
+            }
+        }
+    });
+    more->setMenu(moreMenu);
+    addSeparator(toolBar_, tools);
+    QToolButton* addScreenButton = addButton(toolBar_, tools, QStringLiteral("addScreen"), QStringLiteral("plus"), tr("Add a screen"));
+    connect(addScreenButton, &QToolButton::clicked, this, [this] {
+        if (!controller_->addScreen().isEmpty())
+            centerOnScreen(controller_->currentScreen());
+    });
+    flowsButton_ = addButton(toolBar_, tools, QStringLiteral("flows"), QStringLiteral("link"), tr("Show how screens link to each other"));
+    flowsButton_->setCheckable(true);
+    connect(flowsButton_, &QToolButton::toggled, this, &CanvasWidget::setFlowsVisible);
+
+    zoomBar_ = new QFrame(this);
+    zoomBar_->setObjectName(QStringLiteral("canvasZoomBar"));
+    zoomBar_->setProperty("role", "floating");
+    auto* zoomRow = new QHBoxLayout(zoomBar_);
+    zoomRow->setContentsMargins(5, 5, 5, 5);
+    zoomRow->setSpacing(2);
+    QToolButton* zoomOutButton = addButton(zoomBar_, zoomRow, QStringLiteral("zoomOut"), QStringLiteral("minus"), tr("Zoom out"));
+    connect(zoomOutButton, &QToolButton::clicked, this, &CanvasWidget::zoomOut);
+    zoomLabel_ = new QLabel(QStringLiteral("100%"), zoomBar_);
+    zoomLabel_->setObjectName(QStringLiteral("canvasZoomLabel"));
+    zoomLabel_->setAlignment(Qt::AlignCenter);
+    zoomLabel_->setMinimumWidth(42);
+    zoomRow->addWidget(zoomLabel_);
+    QToolButton* zoomInButton = addButton(zoomBar_, zoomRow, QStringLiteral("zoomIn"), QStringLiteral("plus"), tr("Zoom in"));
+    connect(zoomInButton, &QToolButton::clicked, this, &CanvasWidget::zoomIn);
+    QToolButton* fitButton = addButton(zoomBar_, zoomRow, QStringLiteral("zoomFit"), QStringLiteral("fit"), tr("Fit everything (Shift+1)"));
+    connect(fitButton, &QToolButton::clicked, this, &CanvasWidget::zoomToFit);
+    connect(this, &CanvasWidget::zoomChanged, this, [this](double zoom) { zoomLabel_->setText(QStringLiteral("%1%").arg(static_cast<int>(std::lround(zoom * 100)))); });
+    connect(&Theme::instance(), &Theme::changed, this, [this] {
+        for (const auto& [button, name] : chromeIcons_)
+            button->setIcon(icon(name));
+    });
+    connect(controller_, &ProjectController::projectOpened, this, &CanvasWidget::updateChrome);
+    connect(controller_, &ProjectController::projectClosed, this, &CanvasWidget::updateChrome);
+    updateChrome();
+}
+
+void CanvasWidget::layoutChrome()
+{
+    toolBar_->adjustSize();
+    zoomBar_->adjustSize();
+    toolBar_->move((width() - toolBar_->width()) / 2, height() - toolBar_->height() - 14);
+    zoomBar_->move(width() - zoomBar_->width() - 14, height() - zoomBar_->height() - 14);
+    zoomBar_->setVisible(controller_->hasProject() && toolBar_->geometry().right() + 10 < zoomBar_->x());
+    toolBar_->raise();
+    zoomBar_->raise();
+}
+
+void CanvasWidget::updateChrome()
+{
+    bool open = controller_->hasProject();
+    toolBar_->setVisible(open);
+    zoomBar_->setVisible(open);
+    for (const auto& [key, button] : toolButtons_) {
+        bool on = false;
+        if (key == QStringLiteral("@select"))
+            on = tool_ == Tool::Select;
+        else if (key == QStringLiteral("@pan"))
+            on = tool_ == Tool::Pan;
+        else
+            on = tool_ == Tool::Insert && insertType_ == key;
+        button->setChecked(on);
+    }
+    if (flowsButton_->isChecked() != flows_) {
+        QSignalBlocker block(flowsButton_);
+        flowsButton_->setChecked(flows_);
+    }
+    if (open)
+        layoutChrome();
 }
 
 void CanvasWidget::setTool(Tool tool)
 {
     tool_ = tool;
-    setCursor(tool == Tool::Pan ? Qt::OpenHandCursor : Qt::ArrowCursor);
+    if (tool != Tool::Insert)
+        insertType_.clear();
+    setCursor(tool == Tool::Pan ? Qt::OpenHandCursor : tool == Tool::Insert ? Qt::CrossCursor : Qt::ArrowCursor);
+    updateChrome();
+    Q_EMIT toolChanged();
+}
+
+void CanvasWidget::beginInsert(const QString& type)
+{
+    insertType_ = type;
+    tool_ = Tool::Insert;
+    setCursor(Qt::CrossCursor);
+    updateChrome();
+    setFocus();
+    Q_EMIT toolChanged();
+}
+
+void CanvasWidget::setFlowsVisible(bool on)
+{
+    if (flows_ == on)
+        return;
+    flows_ = on;
+    updateChrome();
+    update();
+}
+
+QRectF CanvasWidget::addScreenRect() const
+{
+    const ir::ApplicationModel* model = controller_->model();
+    if (model == nullptr)
+        return {};
+    if (model->screens.empty())
+        return QRectF(0, 0, 390, 844);
+    QRectF last;
+    for (const auto& screen : model->screens) {
+        QRectF artboard = artboardRect(screen);
+        if (last.isNull() || artboard.right() > last.right())
+            last = artboard;
+    }
+    return QRectF(last.right() + 120, last.top(), std::min(320.0, last.width()), last.height());
 }
 
 QPointF CanvasWidget::worldToView(QPointF world) const
@@ -106,16 +297,18 @@ void CanvasWidget::zoomToFit()
     const ir::ApplicationModel* model = controller_->model();
     if (model == nullptr || model->screens.empty())
         return;
-    QRectF bounds;
+    QRectF bounds = addScreenRect();
     for (const auto& screen : model->screens)
         bounds = bounds.united(artboardRect(screen));
-    double margin = 60;
+    double side = 48;
+    double top = 48;
+    double bottom = 76;
     double available = rulers_ ? kRulerSize : 0;
-    double scale = std::min((width() - available - margin * 2) / bounds.width(), (height() - available - margin * 2) / bounds.height());
-    scale = std::clamp(scale, 0.05, 2.0);
+    double scale = std::min((width() - available - side * 2) / bounds.width(), (height() - available - top - bottom) / bounds.height());
+    scale = std::clamp(scale, 0.05, 1.0);
     view_.scale = scale;
     view_.offsetX = available + (width() - available - bounds.width() * scale) / 2 - bounds.x() * scale;
-    view_.offsetY = available + (height() - available - bounds.height() * scale) / 2 - bounds.y() * scale;
+    view_.offsetY = available + top + (height() - available - top - bottom - bounds.height() * scale) / 2 - bounds.y() * scale;
     Q_EMIT zoomChanged(scale);
     update();
 }
@@ -246,27 +439,24 @@ void CanvasWidget::paintEvent(QPaintEvent*)
     const ThemeColors& c = colors();
     QPainter painter(this);
     painter.fillRect(rect(), c.canvas);
+    const ir::ApplicationModel* model = controller_->model();
+    if (model != nullptr)
+        paintDots(painter);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::TextAntialiasing);
-    const ir::ApplicationModel* model = controller_->model();
     if (model != nullptr) {
         QRectF visible = QRectF(viewToWorld(QPointF(0, 0)), viewToWorld(QPointF(width(), height())));
+        QFont titleFont = font();
+        titleFont.setPixelSize(12);
+        QFont titleBold = titleFont;
+        titleBold.setWeight(QFont::DemiBold);
         for (const auto& screen : model->screens) {
             QRectF artboard = artboardRect(screen);
             bool isCurrent = toQ(screen.root.id) == controller_->currentScreen();
-            painter.save();
-            painter.translate(view_.offsetX, view_.offsetY);
-            painter.scale(view_.scale, view_.scale);
-            QFont titleFont = font();
-            titleFont.setPixelSize(std::max(1, static_cast<int>(12 / view_.scale)));
-            titleFont.setWeight(isCurrent ? QFont::DemiBold : QFont::Normal);
-            painter.setFont(titleFont);
-            painter.setPen(isCurrent ? c.accent : c.textMuted);
-            QString title = toQ(screen.root.name.empty() ? screen.root.id : screen.root.name);
-            if (toQ(screen.root.id) == toQ(model->navigation.start))
-                title += tr("  (start)");
-            painter.drawText(QRectF(artboard.x(), artboard.y() - 22 / view_.scale, artboard.width(), 20 / view_.scale), Qt::AlignLeft | Qt::AlignVCenter, title);
             if (artboard.intersects(visible)) {
+                painter.save();
+                painter.translate(view_.offsetX, view_.offsetY);
+                painter.scale(view_.scale, view_.scale);
                 painter.fillRect(artboard, Qt::white);
                 painter.translate(artboard.topLeft());
                 painter.setClipRect(QRectF(QPointF(0, 0), artboard.size()), Qt::IntersectClip);
@@ -276,13 +466,40 @@ void CanvasWidget::paintEvent(QPaintEvent*)
                 painter.setClipping(false);
                 if (grid_)
                     paintGrid(painter, QRectF(QPointF(0, 0), artboard.size()));
+                painter.restore();
             }
-            painter.restore();
             QRectF frame(worldToView(artboard.topLeft()), worldToView(artboard.bottomRight()));
             painter.setPen(QPen(isCurrent ? c.accent : c.borderStrong, 1));
             painter.setBrush(Qt::NoBrush);
             painter.drawRect(frame.adjusted(-0.5, -0.5, 0.5, 0.5));
+            QString name = toQ(screen.root.name.empty() ? screen.root.id : screen.root.name);
+            if (screen.root.id == model->navigation.start)
+                name += tr(" (start)");
+            QString size = QStringLiteral("%1 x %2").arg(static_cast<int>(std::lround(artboard.width()))).arg(static_cast<int>(std::lround(artboard.height())));
+            painter.setFont(isCurrent ? titleBold : titleFont);
+            QFontMetricsF nameMetrics(painter.font());
+            double available = std::max(40.0, frame.width());
+            QString shown = nameMetrics.elidedText(name, Qt::ElideRight, available);
+            painter.setPen(isCurrent ? c.accent : c.textMuted);
+            QRectF titleRect(frame.left(), frame.top() - 22, available, 20);
+            painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, shown);
+            double used = nameMetrics.horizontalAdvance(shown) + 8;
+            if (used + 60 < available) {
+                painter.setFont(titleFont);
+                painter.setPen(c.textFaint);
+                painter.drawText(titleRect.adjusted(used, 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, size);
+            }
         }
+        QRectF ghostWorld = addScreenRect();
+        QRectF ghost(worldToView(ghostWorld.topLeft()), worldToView(ghostWorld.bottomRight()));
+        painter.setPen(QPen(c.borderStrong, 1, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(ghost);
+        painter.setFont(titleFont);
+        painter.setPen(c.textMuted);
+        painter.drawText(ghost, Qt::AlignCenter, tr("+ Add screen"));
+        if (flows_)
+            paintFlows(painter);
         paintOverlays(painter);
     } else {
         painter.setPen(c.textMuted);
@@ -291,6 +508,105 @@ void CanvasWidget::paintEvent(QPaintEvent*)
     if (rulers_)
         paintRulers(painter);
     lastPaintMicros_ = static_cast<int>(timer.nsecsElapsed() / 1000);
+}
+
+void CanvasWidget::paintDots(QPainter& painter)
+{
+    double step = 20;
+    while (step * view_.scale < 16)
+        step *= 2;
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setPen(QPen(Theme::instance().isDark() ? colors().border : colors().borderStrong, 1));
+    QVector<QPointF> points;
+    double startX = std::floor(view_.toWorldX(0) / step) * step;
+    double startY = std::floor(view_.toWorldY(0) / step) * step;
+    for (double y = startY; view_.toViewY(y) < height(); y += step) {
+        for (double x = startX; view_.toViewX(x) < width(); x += step)
+            points.push_back(QPointF(std::round(view_.toViewX(x)), std::round(view_.toViewY(y))));
+    }
+    painter.drawPoints(points.constData(), static_cast<int>(points.size()));
+}
+
+void CanvasWidget::paintFlows(QPainter& painter)
+{
+    const ir::ApplicationModel* model = controller_->model();
+    const ThemeColors& c = colors();
+    std::function<void(const ir::Screen&, const ir::Component&)> visit = [&](const ir::Screen& screen, const ir::Component& node) {
+        for (const auto& [event, actionId] : node.events) {
+            const ir::Action* action = model->findAction(actionId);
+            if (action == nullptr || action->kind != "navigate")
+                continue;
+            const ir::Screen* target = model->findScreen(action->target);
+            if (target == nullptr || target == &screen)
+                continue;
+            QRectF source = worldFrameOf(toQ(screen.root.id), toQ(node.id));
+            if (source.isEmpty())
+                continue;
+            QRectF artboard = artboardRect(*target);
+            bool forward = artboard.left() >= source.center().x();
+            QPointF from = worldToView(QPointF(forward ? source.right() : source.left(), source.center().y()));
+            QPointF to = worldToView(QPointF(forward ? artboard.left() : artboard.right(), artboard.top() + std::min(60.0, artboard.height() / 4)));
+            double reach = std::max(40.0, std::abs(to.x() - from.x()) / 2);
+            QPainterPath path(from);
+            path.cubicTo(from + QPointF(forward ? reach : -reach, 0), to - QPointF(forward ? reach : -reach, 0), to);
+            painter.setPen(QPen(c.accent, 1.5));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(path);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(c.accent);
+            painter.drawEllipse(from, 3.5, 3.5);
+            double direction = forward ? -1 : 1;
+            const QPointF head[3] = {to, to + QPointF(direction * 8, -5), to + QPointF(direction * 8, 5)};
+            painter.drawPolygon(head, 3);
+        }
+        for (const auto& child : node.children)
+            visit(screen, child);
+    };
+    for (const auto& screen : model->screens)
+        visit(screen, screen.root);
+}
+
+void CanvasWidget::paintMeasure(QPainter& painter, const QRectF& from, const QRectF& to)
+{
+    const ThemeColors& c = colors();
+    QFont small = font();
+    small.setPixelSize(11);
+    painter.setFont(small);
+    QFontMetrics metrics(small);
+    auto gap = [&](QPointF a, QPointF b, double value) {
+        if (value < 0.5)
+            return;
+        QPointF viewA = worldToView(a);
+        QPointF viewB = worldToView(b);
+        painter.setPen(QPen(c.danger, 1));
+        painter.drawLine(viewA, viewB);
+        QString label = QString::number(static_cast<int>(std::lround(value)));
+        QPointF middle = (viewA + viewB) / 2;
+        QRectF tag(middle.x() - metrics.horizontalAdvance(label) / 2.0 - 4, middle.y() - 8, metrics.horizontalAdvance(label) + 8, 16);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(c.danger);
+        painter.drawRoundedRect(tag, 3, 3);
+        painter.setPen(Qt::white);
+        painter.drawText(tag, Qt::AlignCenter, label);
+    };
+    double midY = from.center().y();
+    double midX = from.center().x();
+    if (to.right() <= from.left())
+        gap(QPointF(to.right(), midY), QPointF(from.left(), midY), from.left() - to.right());
+    else if (to.left() >= from.right())
+        gap(QPointF(from.right(), midY), QPointF(to.left(), midY), to.left() - from.right());
+    else {
+        gap(QPointF(to.left(), midY), QPointF(from.left(), midY), from.left() - to.left());
+        gap(QPointF(from.right(), midY), QPointF(to.right(), midY), to.right() - from.right());
+    }
+    if (to.bottom() <= from.top())
+        gap(QPointF(midX, to.bottom()), QPointF(midX, from.top()), from.top() - to.bottom());
+    else if (to.top() >= from.bottom())
+        gap(QPointF(midX, from.bottom()), QPointF(midX, to.top()), to.top() - from.bottom());
+    else {
+        gap(QPointF(midX, to.top()), QPointF(midX, from.top()), from.top() - to.top());
+        gap(QPointF(midX, from.bottom()), QPointF(midX, to.bottom()), to.bottom() - from.bottom());
+    }
 }
 
 void CanvasWidget::paintGrid(QPainter& painter, const QRectF& artboard)
@@ -388,7 +704,7 @@ void CanvasWidget::paintOverlays(QPainter& painter)
         return;
     auto toView = [&](const QRectF& world) { return QRectF(worldToView(world.topLeft()), worldToView(world.bottomRight())); };
     if (!hoverComponent_.isEmpty() && !controller_->selection().contains(hoverComponent_) && drag_ == Drag::None) {
-        QRectF frame = worldFrameOf(controller_->currentScreen(), hoverComponent_);
+        QRectF frame = worldFrameOf(hoverScreen_, hoverComponent_);
         if (!frame.isEmpty()) {
             painter.setPen(QPen(c.accent, 1));
             painter.setBrush(Qt::NoBrush);
@@ -411,8 +727,15 @@ void CanvasWidget::paintOverlays(QPainter& painter)
         if (singleSelection && id != toQ(current->root.id)) {
             painter.setPen(QPen(c.accent, 1));
             painter.setBrush(Qt::white);
-            const QPointF points[8] = {viewFrame.topLeft(), QPointF(viewFrame.center().x(), viewFrame.top()), viewFrame.topRight(), QPointF(viewFrame.right(), viewFrame.center().y()),
-                                       viewFrame.bottomRight(), QPointF(viewFrame.center().x(), viewFrame.bottom()), viewFrame.bottomLeft(), QPointF(viewFrame.left(), viewFrame.center().y())};
+            std::vector<QPointF> points = {viewFrame.topLeft(), viewFrame.topRight(), viewFrame.bottomRight(), viewFrame.bottomLeft()};
+            if (viewFrame.width() > kSideHandleRoom) {
+                points.emplace_back(viewFrame.center().x(), viewFrame.top());
+                points.emplace_back(viewFrame.center().x(), viewFrame.bottom());
+            }
+            if (viewFrame.height() > kSideHandleRoom) {
+                points.emplace_back(viewFrame.right(), viewFrame.center().y());
+                points.emplace_back(viewFrame.left(), viewFrame.center().y());
+            }
             for (const auto& point : points)
                 painter.drawRect(QRectF(point.x() - kHandleSize / 2, point.y() - kHandleSize / 2, kHandleSize, kHandleSize));
             QString label = QStringLiteral("%1 x %2").arg(static_cast<int>(std::lround(frame.width()))).arg(static_cast<int>(std::lround(frame.height())));
@@ -427,6 +750,19 @@ void CanvasWidget::paintOverlays(QPainter& painter)
             painter.setPen(c.accentText);
             painter.drawText(tag, Qt::AlignCenter, label);
         }
+    }
+    if (drag_ == Drag::Draw) {
+        QColor fill = c.accent;
+        fill.setAlpha(36);
+        painter.setPen(QPen(c.accent, 1));
+        painter.setBrush(fill);
+        painter.drawRect(QRectF(worldToView(pressWorld_), worldToView(drawEnd_)).normalized());
+    }
+    if (altHeld_ && singleSelection && !hoverComponent_.isEmpty() && hoverScreen_ == controller_->currentScreen() && !controller_->selection().contains(hoverComponent_)) {
+        QRectF from = worldFrameOf(controller_->currentScreen(), controller_->selection().front());
+        QRectF to = worldFrameOf(controller_->currentScreen(), hoverComponent_);
+        if (!from.isEmpty() && !to.isEmpty())
+            paintMeasure(painter, from, to);
     }
     painter.setPen(QPen(c.danger, 1));
     for (const auto& guide : snapGuides_) {
@@ -517,13 +853,13 @@ CanvasWidget::Handle CanvasWidget::handleAt(QPointF point) const
         return Handle::BottomRight;
     if (near(v.bottomLeft()))
         return Handle::BottomLeft;
-    if (near(QPointF(v.center().x(), v.top())))
+    if (v.width() > kSideHandleRoom && near(QPointF(v.center().x(), v.top())))
         return Handle::Top;
-    if (near(QPointF(v.right(), v.center().y())))
+    if (v.height() > kSideHandleRoom && near(QPointF(v.right(), v.center().y())))
         return Handle::Right;
-    if (near(QPointF(v.center().x(), v.bottom())))
+    if (v.width() > kSideHandleRoom && near(QPointF(v.center().x(), v.bottom())))
         return Handle::Bottom;
-    if (near(QPointF(v.left(), v.center().y())))
+    if (v.height() > kSideHandleRoom && near(QPointF(v.left(), v.center().y())))
         return Handle::Left;
     return Handle::None;
 }
@@ -532,6 +868,14 @@ void CanvasWidget::updateCursor(QPointF point)
 {
     if (spaceHeld_ || tool_ == Tool::Pan) {
         setCursor(drag_ == Drag::Pan ? Qt::ClosedHandCursor : Qt::OpenHandCursor);
+        return;
+    }
+    if (tool_ == Tool::Insert) {
+        setCursor(Qt::CrossCursor);
+        return;
+    }
+    if (addScreenRect().contains(viewToWorld(point))) {
+        setCursor(Qt::PointingHandCursor);
         return;
     }
     switch (handleAt(point)) {
@@ -574,6 +918,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event)
     }
     if (event->button() != Qt::LeftButton)
         return;
+    if (tool_ == Tool::Insert) {
+        if (screenAt(pressWorld_) == nullptr) {
+            controller_->reportStatus(tr("Click inside a screen to place it"));
+            return;
+        }
+        drag_ = Drag::Draw;
+        drawEnd_ = pressWorld_;
+        return;
+    }
     if (rulers_ && (pressView_.x() < kRulerSize || pressView_.y() < kRulerSize)) {
         drag_ = Drag::Guide;
         guideVertical_ = pressView_.x() < kRulerSize;
@@ -597,10 +950,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event)
             QRectF titleBar(artboard.x(), artboard.y() - 24 / view_.scale, artboard.width(), 24 / view_.scale);
             if (titleBar.contains(title)) {
                 controller_->setCurrentScreen(toQ(candidate.root.id));
+                controller_->setSelection({toQ(candidate.root.id)});
                 drag_ = Drag::MoveScreen;
                 screenStartCanvas_ = QPointF(candidate.canvas.x, candidate.canvas.y);
                 return;
             }
+        }
+        if (addScreenRect().contains(pressWorld_)) {
+            controller_->addScreen();
+            return;
         }
         if (!(event->modifiers() & Qt::ShiftModifier))
             controller_->setSelection({});
@@ -644,8 +1002,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event)
 {
     QPointF point = event->position();
     QPointF world = viewToWorld(point);
+    bool alt = event->modifiers() & Qt::AltModifier;
+    if (alt != altHeld_) {
+        altHeld_ = alt;
+        update();
+    }
     const ir::Screen* current = controller_->hasProject() ? controller_->model()->findScreen(fromQ(controller_->currentScreen())) : nullptr;
     switch (drag_) {
+    case Drag::Draw:
+        drawEnd_ = world;
+        update();
+        break;
     case Drag::Pan:
         view_.offsetX += point.x() - lastView_.x();
         view_.offsetY += point.y() - lastView_.y();
@@ -744,18 +1111,22 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event)
     case Drag::None: {
         updateCursor(point);
         QString hover;
-        if (const ir::Screen* screen = screenAt(world)) {
-            if (toQ(screen->root.id) == controller_->currentScreen()) {
+        QString hoverScreen;
+        if (controller_->hasProject() && tool_ != Tool::Insert) {
+            if (const ir::Screen* screen = screenAt(world)) {
                 QPointF local = localToScreen(*screen, world);
                 QString id = toQ(canvas::hitTest(cacheFor(*screen).layout, local.x(), local.y()));
                 if (id.contains(QStringLiteral("__")))
                     id = id.left(id.indexOf(QStringLiteral("__")));
-                if (id != toQ(screen->root.id))
+                if (id != toQ(screen->root.id)) {
                     hover = id;
+                    hoverScreen = toQ(screen->root.id);
+                }
             }
         }
-        if (hover != hoverComponent_) {
+        if (hover != hoverComponent_ || hoverScreen != hoverScreen_) {
             hoverComponent_ = hover;
+            hoverScreen_ = hoverScreen;
             update();
         }
         break;
@@ -773,6 +1144,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event)
     const ir::Screen* current = controller_->hasProject() ? controller_->model()->findScreen(fromQ(controller_->currentScreen())) : nullptr;
     QString screenId = controller_->currentScreen();
     switch (finished) {
+    case Drag::Draw: {
+        QString type = insertType_;
+        QPointF start = pressWorld_;
+        QRectF area = QRectF(start, drawEnd_).normalized();
+        setTool(Tool::Select);
+        if (!type.isEmpty())
+            insertFromMime(type, start, area.width() * view_.scale > 8 && area.height() * view_.scale > 8 ? area.size() : QSizeF());
+        update();
+        break;
+    }
     case Drag::Guide: {
         double start = guideVertical_ ? event->position().x() : event->position().y();
         if (start > kRulerSize)
@@ -937,7 +1318,26 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event)
         return;
     }
     bool control = event->modifiers() & Qt::ControlModifier;
+    if (event->key() == Qt::Key_Alt) {
+        altHeld_ = true;
+        update();
+        return;
+    }
+    if (!control && !(event->modifiers() & Qt::AltModifier)) {
+        static const std::map<int, QString> quick = {{Qt::Key_T, QStringLiteral("text")}, {Qt::Key_F, QStringLiteral("frame")}, {Qt::Key_R, QStringLiteral("shape")}, {Qt::Key_B, QStringLiteral("button")}, {Qt::Key_I, QStringLiteral("textinput")}};
+        auto found = quick.find(event->key());
+        if (found != quick.end()) {
+            beginInsert(found->second);
+            return;
+        }
+    }
     switch (event->key()) {
+    case Qt::Key_Exclam:
+        zoomToFit();
+        return;
+    case Qt::Key_At:
+        zoomToSelection();
+        return;
     case Qt::Key_Delete:
     case Qt::Key_Backspace:
         deleteSelection();
@@ -960,6 +1360,10 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event)
         return;
     }
     case Qt::Key_Escape:
+        if (tool_ == Tool::Insert) {
+            setTool(Tool::Select);
+            return;
+        }
         controller_->setSelection({});
         return;
     case Qt::Key_D:
@@ -1043,6 +1447,11 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event)
 
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event)
 {
+    if (event->key() == Qt::Key_Alt) {
+        altHeld_ = false;
+        update();
+        return;
+    }
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
         spaceHeld_ = false;
         setCursor(tool_ == Tool::Pan ? Qt::OpenHandCursor : Qt::ArrowCursor);
@@ -1092,7 +1501,7 @@ void CanvasWidget::dropEvent(QDropEvent* event)
     update();
 }
 
-void CanvasWidget::insertFromMime(const QString& type, QPointF world)
+void CanvasWidget::insertFromMime(const QString& type, QPointF world, QSizeF size)
 {
     ir::ModelEditor* editor = controller_->editor();
     if (editor == nullptr)
@@ -1124,6 +1533,12 @@ void CanvasWidget::insertFromMime(const QString& type, QPointF world)
     if (!inserted) {
         controller_->reportStatus(toQ(inserted.error().message));
         return;
+    }
+    if (size.isValid() && !size.isEmpty()) {
+        auto first = editor->setField(fromQ(screenId), *inserted, "width", std::round(size.width()));
+        auto second = editor->setField(fromQ(screenId), *inserted, "height", std::round(size.height()));
+        (void)first;
+        (void)second;
     }
     controller_->setCurrentScreen(screenId);
     controller_->setSelection({toQ(*inserted)});
@@ -1175,6 +1590,8 @@ void CanvasWidget::contextMenuEvent(QContextMenuEvent* event)
 void CanvasWidget::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
+    if (controller_->hasProject())
+        layoutChrome();
     if (fitPending_)
         update();
 }

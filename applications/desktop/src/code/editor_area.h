@@ -17,7 +17,9 @@
 #include "code/code_editor.h"
 
 class QCheckBox;
+class QFrame;
 class QLabel;
+class QPushButton;
 
 namespace forma::ui {
 
@@ -50,6 +52,8 @@ public:
     void setExecutionLocation(const QString& path, int line);
     void clearExecutionLocation();
     void gotoComponentAtCursor();
+    void retryLanguageServers();
+    QString serverNotice() const;
 
 Q_SIGNALS:
     void cursorChanged(int line, int column, const QString& language);
@@ -59,6 +63,7 @@ Q_SIGNALS:
     void serverStatusChanged(const QString& text);
     void automationRequested(const QString& command);
     void componentFocusRequested(const QString& screen, const QString& component);
+    void serverInstallRequested(const QString& language, const QString& server, const QString& hint);
 
 private:
     struct Tab {
@@ -79,10 +84,18 @@ private:
     lsp::LanguageClient* clientFor(const editor::LanguageDefinition* language);
     bool saveTab(Tab& tab);
     void stopServers();
+    void updateServerNotice();
 
     ProjectController* controller_;
     QTabWidget* tabs_;
     QWidget* empty_;
+    QFrame* notice_;
+    QLabel* noticeText_;
+    QPushButton* noticeInstall_;
+    QString noticeLanguageName_;
+    QString noticeServer_;
+    QString noticeHint_;
+    std::set<std::string> dismissedNotices_;
     std::vector<std::unique_ptr<Tab>> tabList_;
     std::map<std::string, std::unique_ptr<lsp::LanguageClient>> clients_;
     std::map<QString, std::vector<lsp::Diagnostic>> diagnostics_;

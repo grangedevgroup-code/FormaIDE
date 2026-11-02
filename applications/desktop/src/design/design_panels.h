@@ -3,16 +3,24 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPointer>
+#include <QRectF>
 #include <QScrollArea>
 #include <QTreeWidget>
 #include <QWidget>
 #include <functional>
+#include <set>
 
 #include "app/project_controller.h"
 
 class QFormLayout;
+class QGridLayout;
 class QVBoxLayout;
 class QComboBox;
+class QDoubleSpinBox;
+class QLabel;
+class QPushButton;
+class QStackedWidget;
+class QTabBar;
 
 namespace forma::ui {
 
@@ -45,12 +53,17 @@ public:
     void refresh();
     QTreeWidget* tree() const;
 
+Q_SIGNALS:
+    void screenActivated(const QString& id);
+
 private:
     void syncSelection();
     ProjectController* controller_;
     LayerTree* tree_;
     QLineEdit* filter_;
     bool updating_ = false;
+    std::set<QString> expanded_;
+    std::set<QString> collapsed_;
 };
 
 class PalettePanel : public QWidget {
@@ -63,7 +76,7 @@ public:
 private:
     void insertIntoSelection(const QString& type);
     ProjectController* controller_;
-    QTreeWidget* tree_;
+    QScrollArea* scroll_;
     QLineEdit* search_;
 };
 
@@ -74,9 +87,16 @@ public:
     explicit InspectorPanel(ProjectController* controller, QWidget* parent = nullptr);
     void rebuild();
     void refreshValues();
+    void setFrameProvider(std::function<QRectF(const QString&, const QString&)> provider) { frameProvider_ = std::move(provider); }
+    int currentTab() const;
+    void setCurrentTab(int index);
+    QString codeLocation() const;
 
 Q_SIGNALS:
     void openCodeRequested(const QString& screen, const QString& component);
+    void alignRequested(int edge);
+    void distributeRequested(int axis);
+    void prototypeShown(bool shown);
 
 private:
     using Refresher = std::function<void()>;
@@ -95,6 +115,14 @@ private:
     void addEventRow(QFormLayout* form, const QString& event);
     void addBindingRow(QFormLayout* form, const QString& label, const std::string& key);
     void addJsonRow(QFormLayout* form, const QString& label, const std::string& key);
+    QDoubleSpinBox* makeNumber(const std::string& key, double minimum, double maximum, double fallback);
+    void addNumberCell(QGridLayout* grid, int row, int column, const QString& label, const std::string& key);
+    void addFrameCell(QGridLayout* grid, int row, int column, const QString& label, bool horizontal);
+    void addDeviceRow(QFormLayout* form);
+    void buildPrototype(const ir::Component* component);
+    void refreshCode();
+    QRectF localFrame() const;
+    QString actionForScreen(const QString& screen);
     void buildComponent(const ir::Component& component, const ir::Component* parent);
     void buildMulti();
     void buildNothing();
@@ -104,7 +132,19 @@ private:
     QString newActionFor(const QString& event);
 
     ProjectController* controller_;
+    QTabBar* tabs_;
+    QStackedWidget* pages_;
     QScrollArea* scroll_;
+    QScrollArea* prototypeScroll_;
+    QWidget* codePage_;
+    QLabel* codeLabel_;
+    class CodeEditor* codeView_;
+    QPushButton* codeOpen_;
+    QString codeFile_;
+    int codeLine_ = 0;
+    bool codeStale_ = true;
+    bool generating_ = false;
+    std::function<QRectF(const QString&, const QString&)> frameProvider_;
     QWidget* content_ = nullptr;
     QVBoxLayout* contentLayout_ = nullptr;
     std::vector<Refresher> refreshers_;

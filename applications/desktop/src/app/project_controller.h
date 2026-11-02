@@ -50,6 +50,7 @@ public:
 
     QString currentScreen() const { return currentScreen_; }
     void setCurrentScreen(const QString& id);
+    QString addScreen(const QString& name = QString());
     QStringList selection() const { return selection_; }
     void setSelection(const QStringList& ids);
     void selectComponent(const QString& screen, const QString& component);
@@ -110,9 +111,10 @@ Q_SIGNALS:
     void recoveryAvailable(int buffers, bool design);
     void toolsMissing(const QStringList& tools, const QString& message);
     void runNeedsDevice(const QString& message, const QStringList& toolsToInstall);
-    void noBuildSystem();
+    void noBuildSystem(bool forRun);
     void runUrlFound(const QString& url);
     void runProgress(const QString& text);
+    void runInTerminal(const QString& command);
 
 private:
     void attachSession();

@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QFont>
+#include <QHash>
 #include <QIcon>
 #include <QObject>
 #include <QString>
@@ -58,6 +59,7 @@ private:
     void refresh();
 
     QString mode_ = QStringLiteral("system");
+    mutable QHash<QString, QIcon> iconCache_;
     bool dark_ = false;
     ThemeColors colors_;
     QApplication* application_ = nullptr;

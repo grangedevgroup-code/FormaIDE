@@ -1,12 +1,15 @@
 #include "shell/dialogs.h"
 
+#include <QAbstractButton>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFocusEvent>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -55,6 +58,63 @@ QPixmap logoPixmap(int height)
     return pixmap;
 }
 
+class TemplateCard : public QAbstractButton {
+public:
+    TemplateCard(const QString& title, const QString& detail, const QString& iconName, QWidget* parent) : QAbstractButton(parent), detail_(detail), iconName_(iconName)
+    {
+        setText(title);
+        setCursor(Qt::PointingHandCursor);
+        setAttribute(Qt::WA_Hover);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setFixedHeight(66);
+        setMinimumWidth(190);
+        setFocusPolicy(Qt::TabFocus);
+    }
+
+protected:
+    void focusInEvent(QFocusEvent* event) override
+    {
+        keyboardFocus_ = event->reason() == Qt::TabFocusReason || event->reason() == Qt::BacktabFocusReason;
+        QAbstractButton::focusInEvent(event);
+    }
+
+    void focusOutEvent(QFocusEvent* event) override
+    {
+        keyboardFocus_ = false;
+        QAbstractButton::focusOutEvent(event);
+    }
+
+    void paintEvent(QPaintEvent*) override
+    {
+        const ThemeColors& c = colors();
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        bool active = underMouse() || keyboardFocus_;
+        painter.setPen(QPen(active ? c.accent : c.border, 1));
+        painter.setBrush(c.panelRaised);
+        painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+        qreal ratio = devicePixelRatioF();
+        painter.drawPixmap(QPointF(16, (height() - 24) / 2.0), Theme::instance().pixmap(iconName_, 24, active ? c.accent : c.textMuted, ratio));
+        QRectF textArea(54, 0, width() - 64, height());
+        QFont titleFont = font();
+        titleFont.setWeight(QFont::DemiBold);
+        painter.setFont(titleFont);
+        painter.setPen(c.text);
+        QFontMetricsF titleMetrics(titleFont);
+        QFontMetricsF detailMetrics(font());
+        double top = (height() - titleMetrics.height() - detailMetrics.height() - 2) / 2;
+        painter.drawText(QRectF(textArea.x(), top, textArea.width(), titleMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, titleMetrics.elidedText(text(), Qt::ElideRight, textArea.width()));
+        painter.setFont(font());
+        painter.setPen(c.textMuted);
+        painter.drawText(QRectF(textArea.x(), top + titleMetrics.height() + 2, textArea.width(), detailMetrics.height()), Qt::AlignLeft | Qt::AlignVCenter, detailMetrics.elidedText(detail_, Qt::ElideRight, textArea.width()));
+    }
+
+private:
+    QString detail_;
+    QString iconName_;
+    bool keyboardFocus_ = false;
+};
+
 QString defaultProjectsFolder()
 {
     QString saved = toQ(AppContext::instance().settings().getString("projects.location"));
@@ -69,51 +129,125 @@ WelcomePage::WelcomePage(QWidget* parent) : QWidget(parent)
 {
     setObjectName(QStringLiteral("welcomePage"));
     auto* outer = new QHBoxLayout(this);
+    outer->setContentsMargins(32, 32, 32, 24);
     outer->addStretch(1);
-    auto* column = new QVBoxLayout();
-    column->setSpacing(10);
-    column->addStretch(1);
+    auto* body = new QVBoxLayout();
+    body->setSpacing(10);
+    body->addStretch(1);
     auto* logo = new QLabel(this);
     logo->setObjectName(QStringLiteral("welcomeLogo"));
-    logo->setPixmap(logoPixmap(48));
-    column->addWidget(logo);
-    auto* subtitle = new QLabel(tr("Design screens, generate real source code, edit it, and build it, all on your own computer."), this);
+    logo->setPixmap(logoPixmap(40));
+    body->addWidget(logo);
+    auto* subtitle = new QLabel(tr("Design screens, generate real source code, edit it and run it, all on your own computer."), this);
     subtitle->setProperty("role", "muted");
     subtitle->setWordWrap(true);
-    column->addWidget(subtitle);
-    column->addSpacing(12);
+    body->addWidget(subtitle);
+    body->addSpacing(14);
+    auto* columns = new QHBoxLayout();
+    columns->setSpacing(32);
+    auto* left = new QVBoxLayout();
+    left->setSpacing(8);
+    auto* startLabel = new QLabel(tr("Start something new"), this);
+    startLabel->setProperty("role", "section");
+    left->addWidget(startLabel);
+    auto* cards = new QGridLayout();
+    cards->setSpacing(8);
+    struct Card {
+        const char* id;
+        QString title;
+        QString detail;
+        const char* iconName;
+    };
+    const std::vector<Card> choices = {
+        {"android-compose", tr("Android app"), tr("Jetpack Compose"), "device"},
+        {"windows-wpf", tr("Windows app"), tr("WPF and C#"), "frame"},
+        {"qt-desktop", tr("Desktop app"), tr("Qt and C++"), "frame"},
+        {"apple-swiftui", tr("Mac app"), tr("SwiftUI"), "frame"},
+        {"web-react", tr("Web app"), tr("React and TypeScript"), "code"},
+        {"web-static", tr("Website"), tr("HTML and CSS"), "code"},
+        {"python-tk", tr("Python app"), tr("Tkinter"), "code"},
+        {"blank", tr("Empty project"), tr("Start with code"), "file"},
+    };
+    auto& app = AppContext::instance();
+    int shown = 0;
+    for (const auto& choice : choices) {
+        const project::ProjectTemplate* item = app.templates().find(choice.id);
+        if (item == nullptr || (!item->generator.empty() && app.generators().find(item->generator) == nullptr))
+            continue;
+        std::string reason;
+        if (item->platforms.size() == 1 && !build::hostCanBuildFor(item->platforms.front(), &reason))
+            continue;
+        auto* card = new TemplateCard(choice.title, choice.detail, QString::fromLatin1(choice.iconName), this);
+        card->setObjectName(QStringLiteral("welcomeCard.") + QString::fromLatin1(choice.id));
+        QString id = QString::fromLatin1(choice.id);
+        connect(card, &QAbstractButton::clicked, this, [this, id] { Q_EMIT templateRequested(id); });
+        cards->addWidget(card, shown / 2, shown % 2);
+        ++shown;
+    }
+    left->addLayout(cards);
+    left->addSpacing(6);
     auto* actions = new QHBoxLayout();
-    auto* create = new QPushButton(icon(QStringLiteral("plus")), tr("New project"), this);
+    auto* create = new QPushButton(icon(QStringLiteral("plus")), tr("All templates"), this);
     create->setObjectName(QStringLiteral("welcomeNew"));
     create->setProperty("role", "primary");
     auto* open = new QPushButton(icon(QStringLiteral("folder-open")), tr("Open project"), this);
     open->setObjectName(QStringLiteral("welcomeOpen"));
-    auto* import = new QPushButton(icon(QStringLiteral("code")), tr("Open an existing code folder"), this);
+    auto* import = new QPushButton(icon(QStringLiteral("code")), tr("Open a code folder"), this);
     import->setObjectName(QStringLiteral("welcomeImport"));
     actions->addWidget(create);
     actions->addWidget(open);
     actions->addWidget(import);
     actions->addStretch(1);
-    column->addLayout(actions);
-    column->addSpacing(12);
+    left->addLayout(actions);
+    left->addStretch(1);
+    columns->addLayout(left, 3);
+    auto* right = new QVBoxLayout();
+    right->setSpacing(8);
     auto* label = new QLabel(tr("Recent projects"), this);
     label->setProperty("role", "section");
-    column->addWidget(label);
+    right->addWidget(label);
     recents_ = new QListWidget(this);
     recents_->setObjectName(QStringLiteral("recentProjects"));
-    recents_->setMinimumSize(640, 240);
+    recents_->setMinimumSize(300, 220);
     recents_->setContextMenuPolicy(Qt::CustomContextMenu);
-    column->addWidget(recents_);
+    recents_->setWordWrap(false);
+    recents_->setTextElideMode(Qt::ElideMiddle);
+    right->addWidget(recents_, 1);
     emptyRecents_ = new QLabel(tr("Projects you open will be listed here."), this);
     emptyRecents_->setProperty("role", "muted");
-    column->addWidget(emptyRecents_);
-    column->addStretch(2);
-    outer->addLayout(column);
+    right->addWidget(emptyRecents_);
+    right->addStretch(1);
+    auto* toolsLabel = new QLabel(tr("Tools"), this);
+    toolsLabel->setProperty("role", "section");
+    right->addWidget(toolsLabel);
+    toolsSummary_ = new QLabel(tr("Looking at what's installed..."), this);
+    toolsSummary_->setObjectName(QStringLiteral("welcomeToolsSummary"));
+    toolsSummary_->setProperty("role", "muted");
+    toolsSummary_->setWordWrap(true);
+    right->addWidget(toolsSummary_);
+    auto* toolRow = new QHBoxLayout();
+    auto* tools = new QPushButton(icon(QStringLiteral("build")), tr("Set up tools"), this);
+    tools->setObjectName(QStringLiteral("welcomeTools"));
+    auto* settings = new QPushButton(icon(QStringLiteral("settings")), tr("Settings"), this);
+    settings->setObjectName(QStringLiteral("welcomeSettings"));
+    toolRow->addWidget(tools);
+    toolRow->addWidget(settings);
+    toolRow->addStretch(1);
+    right->addLayout(toolRow);
+    columns->addLayout(right, 2);
+    body->addLayout(columns);
+    body->addStretch(2);
+    auto* holder = new QWidget(this);
+    holder->setLayout(body);
+    holder->setMaximumWidth(980);
+    holder->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    outer->addWidget(holder, 20);
     outer->addStretch(1);
     connect(create, &QPushButton::clicked, this, &WelcomePage::newRequested);
     connect(open, &QPushButton::clicked, this, &WelcomePage::openRequested);
     connect(import, &QPushButton::clicked, this, &WelcomePage::importRequested);
-    connect(recents_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) { Q_EMIT recentRequested(item->data(Qt::UserRole).toString()); });
+    connect(tools, &QPushButton::clicked, this, &WelcomePage::toolsRequested);
+    connect(settings, &QPushButton::clicked, this, &WelcomePage::settingsRequested);
     connect(recents_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) { Q_EMIT recentRequested(item->data(Qt::UserRole).toString()); });
     connect(recents_, &QWidget::customContextMenuRequested, this, [this](const QPoint& position) {
         QListWidgetItem* item = recents_->itemAt(position);
@@ -130,12 +264,18 @@ WelcomePage::WelcomePage(QWidget* parent) : QWidget(parent)
     refresh();
 }
 
+void WelcomePage::setToolsSummary(int ready, int total)
+{
+    toolsSummary_->setText(ready == total ? tr("Everything FormaIDE builds is ready on this computer.")
+                                          : tr("Ready to build %1 of %2 kinds of project. FormaIDE can install the rest for you.").arg(ready).arg(total));
+}
+
 void WelcomePage::refresh()
 {
     recents_->clear();
     for (const auto& recent : AppContext::instance().recents().list()) {
         auto* item = new QListWidgetItem(recents_);
-        item->setText(QStringLiteral("%1  -  %2").arg(toQ(recent.name), QDir::toNativeSeparators(toQ(recent.path))));
+        item->setText(QStringLiteral("%1\n%2").arg(toQ(recent.name), QDir::toNativeSeparators(toQ(recent.path))));
         item->setData(Qt::UserRole, toQ(recent.path));
         item->setToolTip(toQ(recent.path));
     }
@@ -186,7 +326,10 @@ NewProjectDialog::NewProjectDialog(QWidget* parent) : QDialog(parent)
     right->addWidget(tools_);
     right->addSpacing(8);
     auto* form = new QFormLayout();
-    name_ = new QLineEdit(tr("My App"), this);
+    QString suggested = tr("My App");
+    for (int number = 2; QDir(QDir(defaultProjectsFolder()).filePath(suggested)).exists(); ++number)
+        suggested = tr("My App %1").arg(number);
+    name_ = new QLineEdit(suggested, this);
     name_->setObjectName(QStringLiteral("projectNameEdit"));
     form->addRow(tr("Name"), name_);
     auto* locationRow = new QHBoxLayout();
@@ -207,6 +350,10 @@ NewProjectDialog::NewProjectDialog(QWidget* parent) : QDialog(parent)
     git_ = new QCheckBox(tr("Start a Git repository"), this);
     git_->setChecked(app.settings().getBool("projects.git", true));
     form->addRow(QString(), git_);
+    installMissing_ = new QCheckBox(tr("Set up the missing tools after creating the project"), this);
+    installMissing_->setObjectName(QStringLiteral("projectInstallMissing"));
+    installMissing_->setChecked(true);
+    form->addRow(QString(), installMissing_);
     right->addLayout(form);
     right->addStretch(1);
     split->addLayout(right, 1);
@@ -262,17 +409,23 @@ void NewProjectDialog::updateDetails()
     auto& app = AppContext::instance();
     QTreeWidgetItem* item = templates_->currentItem();
     const project::ProjectTemplate* chosen = item != nullptr ? app.templates().find(fromQ(item->data(0, Qt::UserRole).toString())) : nullptr;
+    missingTools_.clear();
     if (chosen != nullptr) {
         description_->setText(toQ(chosen->description));
         QStringList parts;
         for (const auto& tool : chosen->tools) {
+            if (tool == "gradle")
+                continue;
             auto info = app.tools().detect(tool);
+            if (!info.available)
+                missingTools_ << toQ(tool);
             QColor color = info.available ? colors().success : colors().warning;
-            QString status = info.available ? tr("found") : tr("not installed, needed to build this project");
+            QString status = info.available ? tr("found") : tr("not installed yet");
             parts << QStringLiteral("<span style='color:%1'>%2: %3</span>").arg(color.name(), toQ(info.name.empty() ? tool : info.name).toHtmlEscaped(), status);
         }
         tools_->setText(parts.join(QStringLiteral("<br>")));
     }
+    installMissing_->setVisible(!missingTools_.isEmpty());
     QString name = name_->text().trimmed();
     if (!bundleEdited_)
         bundle_->setText(toQ(project::suggestBundleId(fromQ(name))));
@@ -290,6 +443,11 @@ void NewProjectDialog::updateDetails()
     }
     fullPath_->setText(QDir::toNativeSeparators(target));
     create_->setEnabled(chosen != nullptr);
+}
+
+QStringList NewProjectDialog::toolsToInstall() const
+{
+    return installMissing_->isChecked() ? missingTools_ : QStringList();
 }
 
 project::NewProjectOptions NewProjectDialog::options() const

@@ -184,6 +184,10 @@ BuildPanel::BuildPanel(ProjectController* controller, QWidget* parent) : QWidget
     status_->setObjectName(QStringLiteral("buildStatus"));
     status_->setProperty("role", "muted");
     top->addWidget(status_, 1);
+    auto* setup = new QPushButton(tr("Install tools..."), this);
+    setup->setObjectName(QStringLiteral("buildSetup"));
+    connect(setup, &QPushButton::clicked, this, &BuildPanel::setupRequested);
+    top->addWidget(setup);
     layout->addLayout(top);
     progress_ = new QProgressBar(this);
     progress_->setRange(0, 0);

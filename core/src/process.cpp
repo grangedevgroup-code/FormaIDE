@@ -74,7 +74,16 @@ std::string buildWindowsBatchCommand(std::string_view program, const std::vector
     std::string line = caretEscape(program);
     for (const auto& argument : arguments) {
         line.push_back(' ');
-        line += caretEscape(quoteWindowsArgument(argument));
+        std::string quoted = quoteWindowsArgument(argument);
+        if (quoted.empty() || quoted.front() != '"') {
+            if (argument.find_first_of(";,=") != std::string::npos) {
+                std::size_t backslashes = 0;
+                while (backslashes < argument.size() && argument[argument.size() - 1 - backslashes] == '\\')
+                    ++backslashes;
+                quoted = '"' + argument + std::string(backslashes, '\\') + '"';
+            }
+        }
+        line += caretEscape(quoted);
     }
     return line;
 }

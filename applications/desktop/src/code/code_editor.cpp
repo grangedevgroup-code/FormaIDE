@@ -16,6 +16,7 @@
 #include "ScintillaEditBase.h"
 #include "forma/core/json.h"
 #include "forma/core/text.h"
+#include "app/app_context.h"
 #include "forma/resources/resources.h"
 #include "ui/theme.h"
 
@@ -547,12 +548,57 @@ void CodeEditor::autoIndent()
     editor_->send(SCI_GOTOPOS, static_cast<uptr_t>(editor_->send(SCI_GETLINEINDENTPOSITION, static_cast<uptr_t>(line))));
 }
 
+bool CodeEditor::autoClosePair(int character)
+{
+    if (editor_->send(SCI_GETSELECTIONS) > 1)
+        return false;
+    sptr_t position = editor_->send(SCI_GETCURRENTPOS);
+    int next = static_cast<int>(editor_->send(SCI_GETCHARAT, static_cast<uptr_t>(position)));
+    bool isQuote = character == '"' || character == '\'' || character == '`';
+    if (character == ')' || character == ']' || character == '}' || isQuote) {
+        if (next == character) {
+            editor_->send(SCI_DELETERANGE, static_cast<uptr_t>(position), 1);
+            return true;
+        }
+    }
+    int closer = character == '(' ? ')' : character == '[' ? ']' : character == '{' ? '}' : isQuote ? character : 0;
+    if (closer == 0)
+        return false;
+    bool nextAllows = next == 0 || next == '\r' || next == '\n' || next == ' ' || next == '\t' || next == ')' || next == ']' || next == '}' || next == ',' || next == ';' || next == ':';
+    if (!nextAllows)
+        return false;
+    if (isQuote && position >= 2) {
+        int before = static_cast<int>(editor_->send(SCI_GETCHARAT, static_cast<uptr_t>(position - 2)));
+        if (std::isalnum(before) || before == '_' || before == '"' || before == '\'' || before == '`')
+            return false;
+    }
+    char text[2] = {static_cast<char>(closer), 0};
+    editor_->sends(SCI_INSERTTEXT, static_cast<uptr_t>(position), text);
+    return true;
+}
+
 void CodeEditor::onCharacterAdded(int character)
 {
     if (character == '\n') {
         autoIndent();
+        sptr_t position = editor_->send(SCI_GETCURRENTPOS);
+        int next = static_cast<int>(editor_->send(SCI_GETCHARAT, static_cast<uptr_t>(position)));
+        if (next == '}' || next == ')' || next == ']') {
+            sptr_t line = editor_->send(SCI_LINEFROMPOSITION, static_cast<uptr_t>(position));
+            sptr_t previousEnd = editor_->send(SCI_GETLINEENDPOSITION, static_cast<uptr_t>(line - 1)) - 1;
+            int opener = line > 0 && previousEnd >= 0 ? static_cast<int>(editor_->send(SCI_GETCHARAT, static_cast<uptr_t>(previousEnd))) : 0;
+            if ((next == '}' && opener == '{') || (next == ')' && opener == '(') || (next == ']' && opener == '[')) {
+                sptr_t base = editor_->send(SCI_GETLINEINDENTATION, static_cast<uptr_t>(line - 1));
+                const char* eol = editor_->send(SCI_GETEOLMODE) == SC_EOL_CRLF ? "\r\n" : "\n";
+                editor_->sends(SCI_INSERTTEXT, static_cast<uptr_t>(position), eol);
+                editor_->send(SCI_SETLINEINDENTATION, static_cast<uptr_t>(line + 1), base);
+                editor_->send(SCI_GOTOPOS, static_cast<uptr_t>(editor_->send(SCI_GETLINEINDENTPOSITION, static_cast<uptr_t>(line))));
+            }
+        }
         return;
     }
+    if (AppContext::instance().settings().getBool("editor.autoClose", true) && autoClosePair(character) && character != '(')
+        return;
     if (character == '}') {
         sptr_t position = editor_->send(SCI_GETCURRENTPOS);
         sptr_t line = editor_->send(SCI_LINEFROMPOSITION, static_cast<uptr_t>(position));
@@ -789,6 +835,68 @@ void CodeEditor::showCompletions(const std::vector<lsp::CompletionItem>& items)
     sptr_t position = editor_->send(SCI_GETCURRENTPOS);
     sptr_t start = editor_->send(SCI_WORDSTARTPOSITION, static_cast<uptr_t>(position), 1);
     editor_->sends(SCI_AUTOCSHOW, static_cast<uptr_t>(position - start), list.c_str());
+}
+
+void CodeEditor::showWordCompletions()
+{
+    sptr_t position = editor_->send(SCI_GETCURRENTPOS);
+    sptr_t start = editor_->send(SCI_WORDSTARTPOSITION, static_cast<uptr_t>(position), 1);
+    sptr_t typed = position - start;
+    std::string prefix;
+    for (sptr_t at = start; at < position; ++at)
+        prefix.push_back(static_cast<char>(editor_->send(SCI_GETCHARAT, static_cast<uptr_t>(at))));
+    std::string lowered = text::toLower(prefix);
+    std::set<std::string> words;
+    auto consider = [&](const std::string& word) {
+        if (word.size() < 2 || word == prefix)
+            return;
+        if (text::startsWith(text::toLower(word), lowered))
+            words.insert(word);
+    };
+    if (language_ != nullptr) {
+        for (const auto& group : language_->keywords) {
+            for (const auto& word : text::split(group, ' '))
+                consider(word);
+        }
+    }
+    std::string content = rawText();
+    if (content.size() < 4 * 1024 * 1024) {
+        std::string current;
+        for (char ch : content) {
+            auto value = static_cast<unsigned char>(ch);
+            if (std::isalnum(value) || ch == '_') {
+                current.push_back(ch);
+            } else if (!current.empty()) {
+                if (!std::isdigit(static_cast<unsigned char>(current.front())))
+                    consider(current);
+                current.clear();
+            }
+        }
+        if (!current.empty())
+            consider(current);
+    }
+    if (words.empty())
+        return;
+    std::string list;
+    int count = 0;
+    for (const auto& word : words) {
+        if (!list.empty())
+            list.push_back(' ');
+        list += word;
+        if (++count >= 400)
+            break;
+    }
+    editor_->sends(SCI_AUTOCSHOW, static_cast<uptr_t>(typed), list.c_str());
+}
+
+bool CodeEditor::completionListVisible() const
+{
+    return editor_->send(SCI_AUTOCACTIVE) != 0;
+}
+
+void CodeEditor::setReadOnly(bool on)
+{
+    editor_->send(SCI_SETREADONLY, on ? 1 : 0);
 }
 
 void CodeEditor::showCallTip(const QString& value)

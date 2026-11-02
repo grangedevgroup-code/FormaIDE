@@ -17,6 +17,7 @@
 #include <QRegularExpression>
 #include <QThread>
 #include <QUrl>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <thread>
 
@@ -35,6 +36,30 @@ EditorArea::EditorArea(ProjectController* controller, QWidget* parent) : QWidget
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+    notice_ = new QFrame(this);
+    notice_->setObjectName(QStringLiteral("serverNotice"));
+    notice_->setProperty("role", "editorNotice");
+    auto* noticeRow = new QHBoxLayout(notice_);
+    noticeRow->setContentsMargins(10, 5, 8, 5);
+    noticeText_ = new QLabel(notice_);
+    noticeText_->setObjectName(QStringLiteral("serverNoticeText"));
+    noticeText_->setWordWrap(true);
+    noticeRow->addWidget(noticeText_, 1);
+    noticeInstall_ = new QPushButton(tr("Install"), notice_);
+    noticeInstall_->setObjectName(QStringLiteral("serverNoticeInstall"));
+    noticeInstall_->setProperty("role", "primary");
+    noticeRow->addWidget(noticeInstall_);
+    auto* noticeLater = new QPushButton(tr("Not now"), notice_);
+    noticeLater->setObjectName(QStringLiteral("serverNoticeLater"));
+    noticeRow->addWidget(noticeLater);
+    notice_->hide();
+    layout->addWidget(notice_);
+    connect(noticeInstall_, &QPushButton::clicked, this, [this] { Q_EMIT serverInstallRequested(noticeLanguageName_, noticeServer_, noticeHint_); });
+    connect(noticeLater, &QPushButton::clicked, this, [this] {
+        if (Tab* tab = currentTab(); tab != nullptr && tab->editor->language() != nullptr)
+            dismissedNotices_.insert(tab->editor->language()->id);
+        notice_->hide();
+    });
     tabs_ = new QTabWidget(this);
     tabs_->setObjectName(QStringLiteral("editorTabs"));
     tabs_->setTabsClosable(true);
@@ -53,6 +78,7 @@ EditorArea::EditorArea(ProjectController* controller, QWidget* parent) : QWidget
     connect(tabs_, &QTabWidget::tabCloseRequested, this, &EditorArea::closeTab);
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int) {
         Tab* tab = currentTab();
+        updateServerNotice();
         Q_EMIT currentFileChanged(tab != nullptr ? tab->path : QString());
         if (tab != nullptr) {
             QString name = tab->editor->language() != nullptr ? toQ(tab->editor->language()->name) : tr("Plain text");
@@ -213,8 +239,10 @@ CodeEditor* EditorArea::openFile(const QString& relativePath, int line, int colu
     });
     connect(editor, &CodeEditor::completionRequested, this, [this, raw] {
         lsp::LanguageClient* client = clientFor(raw->editor->language());
-        if (client == nullptr || !client->ready())
+        if (client == nullptr || !client->ready()) {
+            raw->editor->showWordCompletions();
             return;
+        }
         QPointer<CodeEditor> guard(raw->editor);
         client->completion(paths::fromUtf8(fromQ(QDir(controller_->rootPath()).filePath(raw->path))), raw->editor->cursorPosition(), [guard](Result<std::vector<lsp::CompletionItem>> items) {
             if (!items)
@@ -295,6 +323,41 @@ lsp::LanguageClient* EditorArea::clientFor(const editor::LanguageDefinition* lan
     return it == clients_.end() ? nullptr : it->second.get();
 }
 
+void EditorArea::updateServerNotice()
+{
+    Tab* tab = currentTab();
+    const editor::LanguageDefinition* language = tab != nullptr ? tab->editor->language() : nullptr;
+    if (language == nullptr || language->servers.empty() || dismissedNotices_.count(language->id) > 0 || !AppContext::instance().settings().getBool("editor.languageServers", true)) {
+        notice_->hide();
+        return;
+    }
+    lsp::ServerChoice choice = lsp::chooseServer(*language);
+    if (choice.found) {
+        notice_->hide();
+        return;
+    }
+    noticeLanguageName_ = toQ(language->name);
+    noticeServer_ = toQ(language->servers.front().command.front());
+    noticeHint_ = toQ(choice.install);
+    build::InstallPlan plan = build::planServerInstall(language->name, language->servers.front().command.front(), choice.install);
+    noticeInstall_->setVisible(plan.automatic());
+    noticeText_->setText(plan.automatic() ? tr("Autocomplete, error checking and go to definition for %1 need its language server. Word completion still works without it.").arg(noticeLanguageName_)
+                                          : tr("Autocomplete and error checking for %1 need its language server: %2. Word completion still works without it.").arg(noticeLanguageName_, noticeHint_));
+    notice_->show();
+}
+
+QString EditorArea::serverNotice() const
+{
+    return notice_->isHidden() ? QString() : noticeText_->text();
+}
+
+void EditorArea::retryLanguageServers()
+{
+    for (auto& tab : tabList_)
+        attachLanguageServer(*tab);
+    updateServerNotice();
+}
+
 void EditorArea::attachLanguageServer(Tab& tab)
 {
     const editor::LanguageDefinition* language = tab.editor->language();
@@ -305,8 +368,9 @@ void EditorArea::attachLanguageServer(Tab& tab)
     if (client == nullptr) {
         lsp::ServerChoice choice = lsp::chooseServer(*language);
         if (!choice.found) {
-            serverStatus_ = tr("No language server for %1. %2").arg(toQ(language->name), toQ(choice.install));
+            serverStatus_ = tr("No language server for %1").arg(toQ(language->name));
             Q_EMIT serverStatusChanged(serverStatus_);
+            updateServerNotice();
             return;
         }
         auto created = std::make_unique<lsp::LanguageClient>(controller_->session()->root(), language->id);
@@ -692,7 +756,26 @@ FileExplorer::FileExplorer(ProjectController* controller, QWidget* parent) : QWi
     filter_->setClearButtonEnabled(true);
     auto* holder = new QHBoxLayout();
     holder->setContentsMargins(6, 4, 6, 4);
-    holder->addWidget(filter_);
+    holder->setSpacing(2);
+    holder->addWidget(filter_, 1);
+    auto* addFile = new QToolButton(this);
+    addFile->setObjectName(QStringLiteral("newFileButton"));
+    addFile->setIcon(icon(QStringLiteral("file")));
+    addFile->setToolTip(tr("New file"));
+    holder->addWidget(addFile);
+    auto* addFolder = new QToolButton(this);
+    addFolder->setObjectName(QStringLiteral("newFolderButton"));
+    addFolder->setIcon(icon(QStringLiteral("folder")));
+    addFolder->setToolTip(tr("New folder"));
+    holder->addWidget(addFolder);
+    connect(addFile, &QToolButton::clicked, this, [this] {
+        if (controller_->hasProject())
+            newFile(controller_->rootPath());
+    });
+    connect(addFolder, &QToolButton::clicked, this, [this] {
+        if (controller_->hasProject())
+            newFolder(controller_->rootPath());
+    });
     layout->addLayout(holder);
     model_ = new QFileSystemModel(this);
     model_->setReadOnly(true);
@@ -718,12 +801,14 @@ FileExplorer::FileExplorer(ProjectController* controller, QWidget* parent) : QWi
         filterModel->needle = value;
         filterModel->invalidate();
     });
-    connect(view_, &QTreeView::activated, this, [this](const QModelIndex& index) {
+    auto openIndex = [this](const QModelIndex& index) {
         QModelIndex source = proxy_->mapToSource(index);
         if (model_->isDir(source))
             return;
         controller_->openFile(QDir(controller_->rootPath()).relativeFilePath(model_->filePath(source)));
-    });
+    };
+    connect(view_, &QTreeView::activated, this, openIndex);
+    connect(view_, &QTreeView::clicked, this, openIndex);
     connect(view_, &QWidget::customContextMenuRequested, this, &FileExplorer::showMenu);
     connect(controller_, &ProjectController::projectOpened, this, [this] { setRoot(controller_->rootPath()); });
     connect(controller_, &ProjectController::projectClosed, this, [this] { setRoot(QString()); });

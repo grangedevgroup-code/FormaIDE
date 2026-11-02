@@ -11,11 +11,13 @@
 #include <QPointer>
 #include <QProgressBar>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QPushButton>
 #include <QSplitter>
 #include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <thread>
 
 #include "app/app_context.h"
 #include "app/project_controller.h"
@@ -35,7 +37,7 @@ SetupDialog::SetupDialog(QWidget* parent) : QDialog(parent)
     setObjectName(QStringLiteral("setupDialog"));
     setWindowTitle(tr("Tools and toolchains"));
     setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-    resize(920, 620);
+    resize(980, 640);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(16, 16, 16, 12);
     layout->setSpacing(10);
@@ -107,7 +109,7 @@ SetupDialog::SetupDialog(QWidget* parent) : QDialog(parent)
     column->addWidget(log_, 1);
     split->setStretchFactor(0, 4);
     split->setStretchFactor(1, 6);
-    split->setSizes({360, 540});
+    split->setSizes({410, 530});
     layout->addWidget(split, 1);
     connect(tree_, &QTreeWidget::currentItemChanged, this, [this] {
         pendingPlan_.reset();
@@ -120,6 +122,10 @@ SetupDialog::SetupDialog(QWidget* parent) : QDialog(parent)
             job_->cancel();
     });
     connect(install_, &QPushButton::clicked, this, [this] {
+        if (!manualUrl_.isEmpty()) {
+            QDesktopServices::openUrl(QUrl(manualUrl_));
+            return;
+        }
         if (pendingPlan_) {
             build::InstallPlan plan = *pendingPlan_;
             installPlan(std::move(plan));
@@ -146,6 +152,31 @@ QString SetupDialog::logText() const
 
 void SetupDialog::refresh()
 {
+    ready_ = false;
+    install_->setEnabled(false);
+    QSignalBlocker blocker(tree_);
+    tree_->clear();
+    auto* waiting = new QTreeWidgetItem(tree_);
+    waiting->setText(0, tr("Looking at what's installed..."));
+    heading_->clear();
+    detail_->clear();
+    commands_->clear();
+    QPointer<SetupDialog> self(this);
+    std::thread([self] {
+        auto& tools = AppContext::instance().tools();
+        tools.detectAll(true);
+        for (const auto& stack : build::toolStacksForHost()) {
+            for (const auto& id : stack.required)
+                tools.detect(id, true);
+            for (const auto& id : stack.optional)
+                tools.detect(id, true);
+        }
+        QMetaObject::invokeMethod(qApp, [self] { if (self) self->populate(); }, Qt::QueuedConnection);
+    }).detach();
+}
+
+void SetupDialog::populate()
+{
     auto& tools = AppContext::instance().tools();
     QString selectedStack;
     QString selectedTool;
@@ -153,6 +184,7 @@ void SetupDialog::refresh()
         selectedStack = item->data(0, kStackRole).toString();
         selectedTool = item->data(0, kToolRole).toString();
     }
+    QSignalBlocker blocker(tree_);
     tree_->clear();
     readyStacks_ = 0;
     totalStacks_ = 0;
@@ -167,7 +199,7 @@ void SetupDialog::refresh()
         parent->setFont(0, bold);
         bool ready = true;
         auto addTool = [&](const std::string& id, bool required) {
-            build::ToolInfo info = tools.detect(id, true);
+            build::ToolInfo info = tools.detect(id);
             auto* child = new QTreeWidgetItem(parent);
             child->setText(0, toQ(info.name.empty() ? id : info.name) + (required ? QString() : tr("  (optional)")));
             child->setData(0, kToolRole, toQ(id));
@@ -192,8 +224,17 @@ void SetupDialog::refresh()
             restore = parent;
     }
     tree_->expandAll();
+    ready_ = true;
     tree_->setCurrentItem(restore != nullptr ? restore : tree_->topLevelItem(0));
     describeCurrent();
+    if (!pendingTools_.isEmpty()) {
+        QStringList wanted = pendingTools_;
+        QString reason = pendingReason_;
+        pendingTools_.clear();
+        pendingReason_.clear();
+        focusTools(wanted, reason);
+    }
+    Q_EMIT refreshed();
 }
 
 QStringList SetupDialog::missingIn(QTreeWidgetItem* item) const
@@ -226,6 +267,7 @@ QStringList SetupDialog::missingIn(QTreeWidgetItem* item) const
 void SetupDialog::describeCurrent()
 {
     QTreeWidgetItem* item = tree_->currentItem();
+    manualUrl_.clear();
     if (pendingPlan_) {
         heading_->setText(toQ(pendingPlan_->name));
         detail_->setText(toQ(pendingPlan_->note));
@@ -234,7 +276,7 @@ void SetupDialog::describeCurrent()
         install_->setEnabled(pendingPlan_->automatic() && !busy());
         return;
     }
-    if (item == nullptr)
+    if (item == nullptr || !ready_)
         return;
     auto& tools = AppContext::instance().tools();
     QString tool = item->data(0, kToolRole).toString();
@@ -268,22 +310,28 @@ void SetupDialog::describeCurrent()
         heading_->setText(toQ(stack->name));
         QString text = toQ(stack->description) + QStringLiteral(". ") + notes.join(QLatin1Char(' '));
         detail_->setText(text.trimmed());
-        install_->setText(missing.isEmpty() ? tr("Everything is installed") : tr("Install what's missing"));
+        bool requiredMissing = false;
+        for (const auto& id : stack->required)
+            requiredMissing = requiredMissing || !tools.isAvailable(id);
+        install_->setText(missing.isEmpty() ? tr("Everything is installed") : requiredMissing ? tr("Install what's missing") : tr("Install the optional tools"));
     }
     commands_->setPlainText(preview.join(QLatin1Char('\n')).trimmed());
     install_->setEnabled(!busy() && !missing.isEmpty() && anyAutomatic);
     if (!manual.empty() && !anyAutomatic) {
         install_->setText(tr("Open the download page"));
         install_->setEnabled(true);
-        disconnect(install_, nullptr, this, nullptr);
-        QString url = toQ(manual);
-        connect(install_, &QPushButton::clicked, this, [url] { QDesktopServices::openUrl(QUrl(url)); });
+        manualUrl_ = toQ(manual);
     }
 }
 
 void SetupDialog::focusTools(const QStringList& tools, const QString& reason)
 {
     pendingPlan_.reset();
+    if (!ready_) {
+        pendingTools_ = tools;
+        pendingReason_ = reason;
+        return;
+    }
     for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
         QTreeWidgetItem* parent = tree_->topLevelItem(i);
         for (int c = 0; c < parent->childCount(); ++c) {

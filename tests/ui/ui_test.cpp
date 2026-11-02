@@ -5,9 +5,16 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
+#include <QToolButton>
+#include <QTreeView>
+#include <QWindow>
+#include <filesystem>
+#include <iostream>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTreeWidget>
@@ -16,7 +23,11 @@
 #include "Lexilla.h"
 #include "ScintillaEditBase.h"
 #include "app/app_context.h"
+#include "forma/build/setup.h"
+#include "forma/core/paths.h"
+#include "forma/core/process.h"
 #include "forma/design/design_engine.h"
+#include "forma/ir/catalog.h"
 #include "shell/main_window.h"
 #include "ui/theme.h"
 
@@ -170,7 +181,7 @@ TEST_F(UiFixture, WorkspaceTourShowsTheRightPanels)
     for (const auto& file : controller->lastReport().files)
         openFile << toQ(file.path);
     ASSERT_FALSE(openFile.isEmpty());
-    for (const auto& workspace : {QStringLiteral("design"), QStringLiteral("code"), QStringLiteral("project"), QStringLiteral("preview"), QStringLiteral("debug"), QStringLiteral("build"), QStringLiteral("assistant")}) {
+    for (const auto& workspace : {QStringLiteral("design"), QStringLiteral("code"), QStringLiteral("project"), QStringLiteral("preview"), QStringLiteral("debug")}) {
         window_->showWorkspace(workspace);
         if (workspace == QStringLiteral("code")) {
             for (const auto& path : openFile) {
@@ -185,6 +196,255 @@ TEST_F(UiFixture, WorkspaceTourShowsTheRightPanels)
         EXPECT_EQ(window_->workspace(), workspace);
         capture(*window_, QStringLiteral("workspace-%1-%2").arg(workspace, mode));
     }
+    window_->showWorkspace(QStringLiteral("design"));
+    window_->showWorkspace(QStringLiteral("build"));
+    settle();
+    EXPECT_EQ(window_->workspace(), QStringLiteral("design"));
+    EXPECT_TRUE(window_->buildPanel()->isVisible());
+    capture(*window_, QStringLiteral("workspace-build-") + mode);
+    window_->toggleBottomPanel();
+    window_->showWorkspace(QStringLiteral("assistant"));
+    settle();
+    EXPECT_TRUE(window_->assistant()->isVisible());
+    capture(*window_, QStringLiteral("workspace-assistant-") + mode);
+}
+
+TEST_F(UiFixture, NewProjectGetsItsOwnFolder)
+{
+    QString location = temp_.filePath(QStringLiteral("projects"));
+    for (const auto& name : {QStringLiteral("First App"), QStringLiteral("Second App")}) {
+        NewProjectDialog dialog(window_.get());
+        dialog.setProjectName(name);
+        dialog.setLocation(location);
+        dialog.selectTemplate(QStringLiteral("blank"));
+        auto status = window_->controller()->createProject(dialog.options());
+        ASSERT_TRUE(status) << status.error().message;
+        EXPECT_EQ(QDir(window_->controller()->rootPath()).dirName(), name);
+        EXPECT_TRUE(QFileInfo::exists(QDir(location).filePath(name + QStringLiteral("/project.json"))));
+        settle();
+    }
+}
+
+TEST_F(UiFixture, CanvasToolsPlaceComponentsWithTheMouse)
+{
+    createProject(QStringLiteral("Tools App"));
+    auto* controller = window_->controller();
+    CanvasWidget* canvas = window_->canvas();
+    settle();
+    const ir::Screen& screen = controller->model()->screens.front();
+    QString screenId = toQ(screen.root.id);
+    int before = static_cast<int>(screen.root.children.size());
+    QPointF world(screen.canvas.x + 100, screen.canvas.y + 300);
+    QPoint point = canvas->worldToView(world).toPoint();
+    auto* textTool = canvas->findChild<QToolButton*>(QStringLiteral("tool.text"));
+    ASSERT_NE(textTool, nullptr);
+    QTest::mouseClick(textTool, Qt::LeftButton);
+    EXPECT_EQ(canvas->tool(), CanvasWidget::Tool::Insert);
+    EXPECT_EQ(canvas->insertType(), QStringLiteral("text"));
+    QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, point);
+    settle();
+    EXPECT_EQ(canvas->tool(), CanvasWidget::Tool::Select);
+    EXPECT_EQ(static_cast<int>(controller->model()->findScreen(fromQ(screenId))->root.children.size()), before + 1);
+    ASSERT_EQ(controller->selection().size(), 1);
+    QString placed = controller->selection().front();
+    const ir::Component* component = ir::findComponent(controller->model()->findScreen(fromQ(screenId))->root, fromQ(placed));
+    ASSERT_NE(component, nullptr);
+    EXPECT_EQ(component->type, "text");
+    capture(*window_, QStringLiteral("canvas-placed"));
+
+    canvas->setFocus();
+    QTest::keyClick(canvas, Qt::Key_R);
+    EXPECT_EQ(canvas->insertType(), QStringLiteral("shape"));
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    EXPECT_EQ(canvas->tool(), CanvasWidget::Tool::Select);
+
+    int screensBefore = static_cast<int>(controller->model()->screens.size());
+    QPoint ghost = canvas->worldToView(canvas->addScreenRect().center()).toPoint();
+    QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, ghost);
+    settle();
+    EXPECT_EQ(static_cast<int>(controller->model()->screens.size()), screensBefore + 1);
+    EXPECT_NE(controller->currentScreen(), screenId);
+    capture(*window_, QStringLiteral("canvas-added-screen"));
+}
+
+TEST_F(UiFixture, LayersListEveryScreenAndSwitchBetweenThem)
+{
+    createProject(QStringLiteral("Layers App"));
+    auto* controller = window_->controller();
+    settle();
+    QTreeWidget* tree = window_->layers()->tree();
+    int screens = static_cast<int>(controller->model()->screens.size());
+    ASSERT_GE(screens, 2);
+    EXPECT_EQ(tree->topLevelItemCount(), screens);
+    QTreeWidgetItem* second = tree->topLevelItem(1);
+    QString secondId = second->data(0, Qt::UserRole).toString();
+    QRect row = tree->visualItemRect(second);
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, row.center());
+    settle();
+    EXPECT_EQ(controller->currentScreen(), secondId);
+    EXPECT_TRUE(controller->selection().contains(secondId));
+    capture(*window_, QStringLiteral("layers-second-screen"));
+}
+
+TEST_F(UiFixture, PrototypeTabLinksScreensAndCodeTabShowsSource)
+{
+    createProject(QStringLiteral("Flow App"));
+    auto* controller = window_->controller();
+    settle();
+    const ir::Screen& first = controller->model()->screens.front();
+    const ir::Screen& second = controller->model()->screens.at(1);
+    QString screenId = toQ(first.root.id);
+    QString target = toQ(second.root.id);
+    std::string button;
+    for (const auto& child : first.root.children) {
+        if (child.type == "button")
+            button = child.id;
+    }
+    ASSERT_FALSE(button.empty());
+    controller->selectComponent(screenId, toQ(button));
+    settle();
+    InspectorPanel* inspector = window_->inspector();
+    inspector->setCurrentTab(1);
+    settle();
+    EXPECT_TRUE(window_->canvas()->flowsVisible());
+    capture(*window_, QStringLiteral("inspector-prototype"));
+    auto* event = inspector->findChild<QComboBox*>(QStringLiteral("event_onClick"));
+    ASSERT_NE(event, nullptr);
+    EXPECT_GE(event->findData(toQ(controller->model()->findScreen(fromQ(screenId))->root.children.front().id)), -1);
+    inspector->setCurrentTab(2);
+    settle();
+    EXPECT_TRUE(waitFor([&] { return inspector->codeLocation().contains(QLatin1Char(':')); }, 20000)) << fromQ(inspector->codeLocation());
+    capture(*window_, QStringLiteral("inspector-code"));
+    inspector->setCurrentTab(0);
+    settle();
+    EXPECT_FALSE(window_->canvas()->flowsVisible());
+    Q_UNUSED(target);
+}
+
+TEST_F(UiFixture, CommandsWorkWithTheMenuBarHidden)
+{
+    createProject(QStringLiteral("Keys App"), QStringLiteral("blank"));
+    ASSERT_TRUE(window_->controller()->session()->filesystem().writeFile("keys.py", "print('x')\n"));
+    window_->showWorkspace(QStringLiteral("code"));
+    settle();
+    bool open = window_->bottomPanelOpen();
+    QTest::keySequence(window_->windowHandle(), QKeySequence(Qt::CTRL | Qt::Key_J));
+    settle();
+    EXPECT_NE(window_->bottomPanelOpen(), open);
+    QTest::keySequence(window_->windowHandle(), QKeySequence(Qt::CTRL | Qt::Key_J));
+    settle();
+    EXPECT_EQ(window_->bottomPanelOpen(), open);
+    auto* button = window_->findChild<QToolButton*>(QStringLiteral("mainMenuButton"));
+    ASSERT_NE(button, nullptr);
+    ASSERT_NE(button->menu(), nullptr);
+    EXPECT_GE(button->menu()->actions().size(), 5);
+}
+
+TEST_F(UiFixture, CodeModeOpensWithOneClickAndCompletesWithoutAServer)
+{
+    createProject(QStringLiteral("Click App"), QStringLiteral("blank"));
+    auto* controller = window_->controller();
+    ASSERT_TRUE(controller->session()->filesystem().writeFile("click.py", "printer_value = 1\n"));
+    window_->showWorkspace(QStringLiteral("code"));
+    settle();
+    auto* tree = window_->findChild<QTreeView*>(QStringLiteral("fileTree"));
+    ASSERT_NE(tree, nullptr);
+    QModelIndex found;
+    ASSERT_TRUE(waitFor([&] {
+        QAbstractItemModel* model = tree->model();
+        QModelIndex rootIndex = tree->rootIndex();
+        for (int i = 0; i < model->rowCount(rootIndex); ++i) {
+            QModelIndex index = model->index(i, 0, rootIndex);
+            if (index.data().toString() == QStringLiteral("click.py")) {
+                found = index;
+                return true;
+            }
+        }
+        return false;
+    }, 10000));
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, tree->visualRect(found).center());
+    settle();
+    CodeEditor* editor = window_->editors()->currentEditor();
+    ASSERT_NE(editor, nullptr);
+    EXPECT_EQ(window_->editors()->currentPath(), QStringLiteral("click.py"));
+    EXPECT_TRUE(window_->terminal()->isVisible());
+    QWidget* focused = window_->focusWidget();
+    ASSERT_NE(focused, nullptr);
+    editor->gotoLine(2);
+    QTest::keyClicks(focused, QStringLiteral("pri"));
+    settle();
+    EXPECT_TRUE(editor->completionListVisible());
+    capture(*window_, QStringLiteral("code-word-completion"));
+    QTest::keyClick(focused, Qt::Key_Escape);
+    QTest::keyClicks(focused, QStringLiteral("nt("));
+    settle();
+    EXPECT_TRUE(editor->text().contains(QStringLiteral("print()"))) << fromQ(editor->text());
+    QTest::keyClick(focused, Qt::Key_ParenRight, Qt::NoModifier);
+    settle();
+    EXPECT_TRUE(editor->text().contains(QStringLiteral("print()"))) << fromQ(editor->text());
+    EXPECT_FALSE(editor->text().contains(QStringLiteral("print())"))) << fromQ(editor->text());
+}
+
+TEST_F(UiFixture, RunWithoutABuildSystemRunsTheOpenFile)
+{
+    createProject(QStringLiteral("Script App"), QStringLiteral("blank"));
+    auto* controller = window_->controller();
+    ASSERT_TRUE(controller->session()->filesystem().writeFile("hello.py", "print('forma-run-' + 'marker')\n"));
+    window_->showWorkspace(QStringLiteral("code"));
+    settle();
+    ASSERT_NE(window_->editors()->openFile(QStringLiteral("hello.py")), nullptr);
+    settle();
+    auto* run = window_->findChild<QAction*>(QStringLiteral("actionRun"));
+    ASSERT_NE(run, nullptr);
+    run->trigger();
+    TerminalWidget* terminal = nullptr;
+    bool seen = waitFor([&] {
+        terminal = window_->terminal()->current();
+        return terminal != nullptr && terminal->visibleText().remove(QLatin1Char('\n')).contains(QStringLiteral("forma-run-marker"));
+    }, 30000);
+    capture(*window_, QStringLiteral("run-file"));
+    EXPECT_TRUE(seen) << (terminal != nullptr ? fromQ(terminal->visibleText()) : std::string("no terminal"));
+    EXPECT_TRUE(window_->terminal()->isVisible());
+    if (terminal != nullptr)
+        terminal->stop();
+}
+
+TEST_F(UiFixture, SetupDialogListsToolsAndRunsAnInstallPlan)
+{
+    window_->openSetup();
+    SetupDialog* dialog = window_->setupDialog();
+    ASSERT_NE(dialog, nullptr);
+    ASSERT_TRUE(waitFor([&] { return dialog->ready(); }, 90000));
+    auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("setupTree"));
+    ASSERT_NE(tree, nullptr);
+    EXPECT_GE(tree->topLevelItemCount(), 6);
+    capture(*dialog, QStringLiteral("setup-") + (Theme::instance().isDark() ? QStringLiteral("dark") : QStringLiteral("light")));
+    build::InstallPlan plan;
+    plan.id = "demo";
+    plan.name = "Demo tool";
+    build::SetupStep step;
+    step.label = "Say hello";
+#if defined(_WIN32)
+    step.process.program = "cmd";
+    step.process.arguments = {"/c", "echo", "forma-setup-marker"};
+#else
+    step.process.program = "sh";
+    step.process.arguments = {"-c", "echo forma-setup-marker"};
+#endif
+    step.process.mergeStderr = true;
+    plan.steps.push_back(step);
+    bool finished = false;
+    bool success = false;
+    QObject::connect(dialog, &SetupDialog::installFinished, dialog, [&](bool ok) {
+        finished = true;
+        success = ok;
+    });
+    dialog->installPlan(plan);
+    ASSERT_TRUE(waitFor([&] { return finished; }, 120000));
+    EXPECT_TRUE(success);
+    EXPECT_TRUE(dialog->logText().contains(QStringLiteral("forma-setup-marker"))) << fromQ(dialog->logText());
+    ASSERT_TRUE(waitFor([&] { return dialog->ready(); }, 90000));
+    dialog->close();
 }
 
 TEST_F(UiFixture, CodingWithRealInputReachesDisk)
@@ -215,6 +475,184 @@ TEST_F(UiFixture, CodingWithRealInputReachesDisk)
     QTest::keySequence(focused, QKeySequence::Undo);
     settle();
     EXPECT_FALSE(editor->text().contains(QStringLiteral("x = 1\n"))) << fromQ(editor->text());
+}
+
+TEST_F(UiFixture, RealToolInstalls)
+{
+    QString wanted = qEnvironmentVariable("FORMA_REAL_SETUP");
+    if (wanted.isEmpty())
+        GTEST_SKIP() << "Set FORMA_REAL_SETUP to tool ids to run real installs";
+    window_->openSetup();
+    SetupDialog* dialog = window_->setupDialog();
+    ASSERT_TRUE(waitFor([&] { return dialog->ready(); }, 180000));
+    auto& tools = AppContext::instance().tools();
+    for (const auto& id : wanted.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        bool finished = false;
+        bool success = false;
+        QMetaObject::Connection link = QObject::connect(dialog, &SetupDialog::installFinished, dialog, [&](bool ok) {
+            finished = true;
+            success = ok;
+        });
+        QElapsedTimer timer;
+        timer.start();
+        dialog->installTools({id});
+        bool done = waitFor([&] { return finished; }, 45 * 60 * 1000);
+        QObject::disconnect(link);
+        ASSERT_TRUE(waitFor([&] { return dialog->ready(); }, 180000));
+        build::ToolInfo info = tools.detect(fromQ(id), true);
+        std::cout << "REAL " << fromQ(id) << " done=" << done << " success=" << success << " available=" << info.available << " version=" << info.version << " path=" << info.path << " seconds=" << timer.elapsed() / 1000 << std::endl;
+        EXPECT_TRUE(done && success) << fromQ(dialog->logText().right(3000));
+        EXPECT_TRUE(info.available) << fromQ(id) << " " << fromQ(dialog->logText().right(3000));
+    }
+    capture(*dialog, QStringLiteral("setup-after-real"));
+    dialog->close();
+}
+
+TEST_F(UiFixture, RealLanguageServers)
+{
+    QString wanted = qEnvironmentVariable("FORMA_REAL_LSP");
+    if (wanted.isEmpty())
+        GTEST_SKIP() << "Set FORMA_REAL_LSP to run against installed language servers";
+    struct Case {
+        const char* key;
+        const char* file;
+        const char* start;
+        const char* typed;
+        const char* broken;
+    };
+    const std::vector<Case> cases = {
+        {"python", "demo.py", "import os\n", "os.", "print(undefined_name_here)\n"},
+        {"typescript", "demo.ts", "const words: string[] = [];\n", "words.", "const count: number = 'text';\n"},
+        {"cpp", "demo.cpp", "#include <vector>\nstd::vector<int> values;\nvoid f() {\n", "values.", "int broken = undefined_name_here;\n"},
+        {"rust", "src/main.rs", "fn main() {\n    let words: Vec<i32> = Vec::new();\n", "words.", "fn broken() -> i32 { undefined_name_here }\n"},
+        {"kotlin", "demo.kt", "fun main() {\n    val words = listOf(1)\n", "words.", "val broken: Int = undefined_name_here\n"},
+    };
+    for (const auto& item : cases) {
+        if (!wanted.contains(QString::fromLatin1(item.key)))
+            continue;
+        createProject(QStringLiteral("Lsp ") + QString::fromLatin1(item.key), QStringLiteral("blank"));
+        auto* controller = window_->controller();
+        auto& files = controller->session()->filesystem();
+        if (QString::fromLatin1(item.key) == QStringLiteral("rust")) {
+            ASSERT_TRUE(files.writeFile("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"));
+            std::error_code ec;
+            std::filesystem::create_directories(controller->session()->root() / "src", ec);
+        }
+        ASSERT_TRUE(files.writeFile(item.file, std::string(item.broken) + item.start));
+        window_->showWorkspace(QStringLiteral("code"));
+        CodeEditor* editor = window_->editors()->openFile(QString::fromLatin1(item.file));
+        ASSERT_NE(editor, nullptr);
+        bool running = waitFor([&] { return window_->editors()->serverStatus().contains(QStringLiteral("is running")); }, 120000);
+        std::cout << "REAL LSP " << item.key << " status=" << fromQ(window_->editors()->serverStatus()) << std::endl;
+        EXPECT_TRUE(running) << item.key;
+        bool diagnosed = waitFor([&] {
+            for (const auto& problem : controller->problems()) {
+                if (problem.source != QStringLiteral("Design") && problem.file.endsWith(QFileInfo(QString::fromLatin1(item.file)).fileName()))
+                    return true;
+            }
+            return false;
+        }, 120000);
+        settle();
+        capture(*window_, QStringLiteral("real-lsp-diagnostics-") + QString::fromLatin1(item.key));
+        std::cout << "REAL LSP " << item.key << " diagnostics=" << diagnosed << std::endl;
+        EXPECT_TRUE(diagnosed) << item.key;
+        editor->gotoLine(editor->lineCount());
+        QWidget* focused = window_->focusWidget();
+        ASSERT_NE(focused, nullptr);
+        bool listed = false;
+        for (int attempt = 0; attempt < 4 && !listed; ++attempt) {
+            QTest::keyClicks(focused, QString::fromLatin1(item.typed));
+            listed = waitFor([&] { return editor->completionListVisible(); }, 30000);
+            if (!listed)
+                editor->undo();
+        }
+        settle();
+        capture(*window_, QStringLiteral("real-lsp-completion-") + QString::fromLatin1(item.key));
+        std::cout << "REAL LSP " << item.key << " completion=" << listed << std::endl;
+        EXPECT_TRUE(listed) << item.key;
+        QTest::keyClick(focused, Qt::Key_Escape);
+        EXPECT_TRUE(window_->editors()->saveAll());
+        ASSERT_TRUE(window_->editors()->closeAll());
+        controller->closeProject();
+        settle();
+    }
+}
+
+TEST_F(UiFixture, RealRunOfTemplates)
+{
+    QString wanted = qEnvironmentVariable("FORMA_REAL_RUNS");
+    if (wanted.isEmpty())
+        GTEST_SKIP() << "Set FORMA_REAL_RUNS to template ids to build and run them for real";
+    auto* controller = window_->controller();
+    for (const auto& id : wanted.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        createProject(QStringLiteral("Real ") + QString(id).replace(QLatin1Char('-'), QLatin1Char(' ')), id);
+        bool buildDone = false;
+        bool buildOk = false;
+        bool stopped = false;
+        int exitCode = 0;
+        QString url;
+        QObject guard;
+        QObject::connect(controller, &ProjectController::buildFinished, &guard, [&](bool ok, int, int, qint64) {
+            buildDone = true;
+            buildOk = ok;
+        });
+        QObject::connect(controller, &ProjectController::appStopped, &guard, [&](int code) {
+            stopped = true;
+            exitCode = code;
+        });
+        QObject::connect(controller, &ProjectController::runUrlFound, &guard, [&](const QString& found) { url = found; });
+        window_->findChild<QAction*>(QStringLiteral("actionRun"))->trigger();
+        EXPECT_TRUE(waitFor([&] { return buildDone; }, 20 * 60 * 1000)) << fromQ(id);
+        EXPECT_TRUE(buildOk) << fromQ(id) << "\n" << fromQ(window_->output()->text().right(4000));
+        bool android = controller->isAndroidProject();
+        bool web = controller->opensInBrowser();
+        bool reached = false;
+        if (buildOk) {
+            if (android) {
+                reached = waitFor([&] { return window_->runStatusText().startsWith(QStringLiteral("Running on")) || stopped; }, 15 * 60 * 1000) && !stopped;
+            } else if (web) {
+                reached = waitFor([&] { return !url.isEmpty() || stopped; }, 3 * 60 * 1000) && !url.isEmpty();
+            } else if (controller->target()->generator.empty()) {
+                TerminalWidget* terminal = nullptr;
+                reached = waitFor([&] {
+                    terminal = window_->terminal()->current();
+                    return window_->runStatusText() == QStringLiteral("Running in the terminal") && terminal != nullptr;
+                }, 30000);
+                QTest::qWait(25000);
+                if (terminal != nullptr) {
+                    std::cout << "REAL TERMINAL " << fromQ(id) << ":\n" << fromQ(terminal->visibleText().right(900)) << std::endl;
+                    terminal->stop();
+                }
+            } else {
+                waitFor([&] { return stopped; }, 12000);
+                reached = stopped ? exitCode == 0 : controller->appRunning();
+            }
+        }
+        settle();
+        capture(*window_, QStringLiteral("real-run-") + id);
+        std::cout << "REAL RUN " << fromQ(id) << " build=" << buildOk << " reached=" << reached << " stopped=" << stopped << " exit=" << exitCode << " url=" << fromQ(url) << " status=" << fromQ(window_->runStatusText()) << std::endl;
+        EXPECT_TRUE(reached) << fromQ(id) << "\n" << fromQ(window_->output()->text().right(4000));
+        if (android && reached) {
+            QString shot = QDir(tourDirectory()).filePath(QStringLiteral("real-run-android-device.png"));
+            auto adb = build::adbPath(AppContext::instance().tools());
+            QString serial = window_->runStatusText().mid(QStringLiteral("Running on ").size());
+            ProcessSpec capturePhone;
+            capturePhone.program = paths::toUtf8(*adb);
+            capturePhone.arguments = {"-s", fromQ(serial), "exec-out", "screencap", "-p"};
+            auto picture = runProcess(capturePhone, std::chrono::seconds(30));
+            if (picture) {
+                QFile file(shot);
+                if (file.open(QIODevice::WriteOnly))
+                    file.write(picture->out.data(), static_cast<qint64>(picture->out.size()));
+            }
+        }
+        window_->findChild<QAction*>(QStringLiteral("actionStop"))->trigger();
+        settle();
+        EXPECT_FALSE(controller->appRunning()) << fromQ(id);
+        window_->editors()->closeAll();
+        controller->closeProject();
+        settle();
+    }
 }
 
 TEST_F(UiFixture, CanvasDropInsertsSelectsAndUndoes)
@@ -461,6 +899,7 @@ int main(int argc, char** argv)
     if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "offscreen");
     QTemporaryDir home;
+    qputenv("FORMA_NO_BROWSER", "1");
     qputenv("FORMA_CONFIG_HOME", home.filePath(QStringLiteral("config")).toUtf8());
     qputenv("FORMA_DATA_HOME", home.filePath(QStringLiteral("data")).toUtf8());
     QApplication application(argc, argv);
