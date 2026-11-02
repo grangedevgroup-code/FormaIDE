@@ -6,6 +6,7 @@
 #include "forma/assets/asset_manager.h"
 #include "forma/build/build_system.h"
 #include "forma/core/framed_json.h"
+#include "forma/core/text.h"
 #include "forma/debugger/debug_client.h"
 #include "forma/generators/registry.h"
 #include "forma/ir/catalog.h"
