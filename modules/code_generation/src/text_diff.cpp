@@ -175,23 +175,42 @@ MergeResult mergeThreeWay(std::string_view base, std::string_view mine, std::str
     int baseCount = static_cast<int>(baseLines.size());
 
     while (mineIndex < mineHunks.size() || theirIndex < theirHunks.size()) {
-        int regionStart;
-        if (mineIndex < mineHunks.size() && (theirIndex >= theirHunks.size() || mineHunks[mineIndex].baseStart <= theirHunks[theirIndex].baseStart))
-            regionStart = mineHunks[mineIndex].baseStart;
-        else
-            regionStart = theirHunks[theirIndex].baseStart;
-        int regionEnd = regionStart;
+        bool startWithMine;
+        if (mineIndex >= mineHunks.size()) {
+            startWithMine = false;
+        } else if (theirIndex >= theirHunks.size()) {
+            startWithMine = true;
+        } else if (mineHunks[mineIndex].baseStart != theirHunks[theirIndex].baseStart) {
+            startWithMine = mineHunks[mineIndex].baseStart < theirHunks[theirIndex].baseStart;
+        } else {
+            startWithMine = mineHunks[mineIndex].baseCount == 0 || theirHunks[theirIndex].baseCount != 0;
+        }
+        const DiffHunk& first = startWithMine ? mineHunks[mineIndex] : theirHunks[theirIndex];
+        int regionStart = first.baseStart;
+        int regionEnd = first.baseStart + first.baseCount;
         std::size_t mineFirst = mineIndex;
         std::size_t theirFirst = theirIndex;
+        if (startWithMine)
+            ++mineIndex;
+        else
+            ++theirIndex;
+        auto overlaps = [&](const DiffHunk& hunk) {
+            bool regionEmpty = regionStart == regionEnd;
+            if (hunk.baseCount == 0)
+                return regionEmpty ? hunk.baseStart == regionStart : hunk.baseStart > regionStart && hunk.baseStart < regionEnd;
+            if (regionEmpty)
+                return false;
+            return hunk.baseStart < regionEnd;
+        };
         bool extended = true;
         while (extended) {
             extended = false;
-            if (mineIndex < mineHunks.size() && mineHunks[mineIndex].baseStart <= regionEnd) {
+            if (mineIndex < mineHunks.size() && overlaps(mineHunks[mineIndex])) {
                 regionEnd = std::max(regionEnd, mineHunks[mineIndex].baseStart + mineHunks[mineIndex].baseCount);
                 ++mineIndex;
                 extended = true;
             }
-            if (theirIndex < theirHunks.size() && theirHunks[theirIndex].baseStart <= regionEnd) {
+            if (theirIndex < theirHunks.size() && overlaps(theirHunks[theirIndex])) {
                 regionEnd = std::max(regionEnd, theirHunks[theirIndex].baseStart + theirHunks[theirIndex].baseCount);
                 ++theirIndex;
                 extended = true;
