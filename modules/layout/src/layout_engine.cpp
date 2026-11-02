@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <deque>
 
 #include "forma/core/text.h"
 #include "forma/ir/catalog.h"
@@ -180,7 +179,7 @@ namespace {
 
 class Engine {
 public:
-    Engine(const LayoutOptions& options) : options_(options)
+    Engine(const LayoutOptions& options) : options_(options), store_(std::make_shared<std::deque<Component>>())
     {
         static const ApproximateTextMeasurer fallback;
         measurer_ = options.measurer != nullptr ? options.measurer : &fallback;
@@ -189,6 +188,7 @@ public:
     LayoutResult run(const Component& root, Size viewport)
     {
         LayoutResult result;
+        result.storage = store_;
         const Component& resolved = hold(root);
         double width = resolved.width.mode == SizeMode::Fixed ? resolved.width.value : viewport.width;
         double height = resolved.height.mode == SizeMode::Fixed ? resolved.height.value : viewport.height;
@@ -208,8 +208,8 @@ private:
         Component resolved = resolveComponent(component, options_);
         if (resolved == component)
             return component;
-        store_.push_back(std::move(resolved));
-        return store_.back();
+        store_->push_back(std::move(resolved));
+        return store_->back();
     }
 
     static double clampSize(double value, const SizeSpec& spec)
@@ -936,20 +936,15 @@ private:
 
     LayoutOptions options_;
     const ITextMeasurer* measurer_ = nullptr;
-    std::deque<Component> store_;
+    std::shared_ptr<std::deque<Component>> store_;
 };
 
 }
 
 LayoutResult computeLayout(const Component& root, Size viewport, const LayoutOptions& options)
 {
-    static thread_local std::deque<std::unique_ptr<Engine>> keepAlive;
-    auto engine = std::make_unique<Engine>(options);
-    LayoutResult result = engine->run(root, viewport);
-    keepAlive.push_back(std::move(engine));
-    while (keepAlive.size() > 4)
-        keepAlive.pop_front();
-    return result;
+    Engine engine(options);
+    return engine.run(root, viewport);
 }
 
 LayoutResult computeScreenLayout(const Screen& screen, const LayoutOptions& options)

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <deque>
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -69,6 +71,7 @@ struct LayoutResult {
     Size size;
     std::vector<LayoutNode> nodes;
     std::map<std::string, int> index;
+    std::shared_ptr<std::deque<ir::Component>> storage;
 
     const LayoutNode* find(std::string_view id) const;
 };
