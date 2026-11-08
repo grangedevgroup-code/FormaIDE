@@ -6,6 +6,7 @@
 #include "forma/build/setup.h"
 #include "forma/core/paths.h"
 #include "forma/core/process.h"
+#include "forma/core/text.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -165,20 +166,24 @@ TEST(Setup, AJobAcceptsTheSuccessCodesAStepAllows)
 
 TEST(Setup, RefreshingTheEnvironmentKeepsThePathAndAddsManagedTools)
 {
+#if defined(_WIN32)
+    const char separator = ';';
+    auto key = [](const std::string& entry) { return text::toLower(entry); };
+#else
+    const char separator = ':';
+    auto key = [](const std::string& entry) { return entry; };
+#endif
     auto before = paths::env("PATH").value_or("");
     refreshEnvironmentFromSystem();
     auto after = paths::env("PATH").value_or("");
-    EXPECT_GE(after.size(), before.size());
-    if (!before.empty()) {
-        auto firstEntry = before.substr(0, before.find(
-#if defined(_WIN32)
-            ';'
-#else
-            ':'
-#endif
-            ));
-        EXPECT_NE(after.find(firstEntry), std::string::npos);
+    std::set<std::string> kept;
+    for (const auto& entry : text::split(after, separator))
+        kept.insert(key(entry));
+    for (const auto& entry : text::split(before, separator)) {
+        if (!entry.empty())
+            EXPECT_TRUE(kept.count(key(entry))) << entry;
     }
+    EXPECT_TRUE(kept.count(key(paths::toUtf8(paths::homeDir() / ".cargo" / "bin"))));
 }
 
 #if defined(_WIN32)
