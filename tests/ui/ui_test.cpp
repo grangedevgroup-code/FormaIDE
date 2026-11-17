@@ -372,7 +372,10 @@ TEST_F(UiFixture, CodeModeOpensWithOneClickAndCompletesWithoutAServer)
     ASSERT_NE(focused, nullptr);
     editor->gotoLine(2);
     QTest::keyClicks(focused, QStringLiteral("pri"));
-    EXPECT_TRUE(waitFor([&] { return editor->completionListVisible(); }, 5000));
+    EXPECT_TRUE(waitFor([&] { return editor->completionListVisible(); }, 5000))
+        << "keys went to " << focused->metaObject()->className() << ", focus is on "
+        << (window_->focusWidget() ? window_->focusWidget()->metaObject()->className() : "nothing")
+        << ", editor text: " << editor->text().left(120).toStdString();
     capture(*window_, QStringLiteral("code-word-completion"));
     QTest::keyClick(focused, Qt::Key_Escape);
     QTest::keyClicks(focused, QStringLiteral("nt("));
