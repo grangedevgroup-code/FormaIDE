@@ -27,7 +27,7 @@ jobs:
           python-version: "3.13"
       - run: pip install ninja
       - if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       - run: cmake --preset headless
       - run: cmake --build --preset headless --parallel
       - run: ctest --test-dir build/headless --output-on-failure --timeout 300
@@ -46,7 +46,7 @@ jobs:
           python-version: "3.13"
       - run: pip install ninja py7zr
       - if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libfontconfig1-dev libfreetype-dev fonts-dejavu-core
       - name: Fetch Qt
@@ -94,7 +94,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: stable
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           gradle-version: "9.8.2"
       - if: runner.os != 'macOS'
@@ -105,7 +105,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0
       - if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       - run: cmake --preset headless
       - run: cmake --build --preset headless --parallel --target forma
       - name: Build generated projects
@@ -122,6 +122,6 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install ninja
-      - uses: mymindstorm/setup-emsdk@v16
+      - uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984
       - run: emcmake cmake --preset web-core
       - run: cmake --build --preset web-core --parallel
