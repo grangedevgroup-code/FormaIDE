@@ -372,8 +372,7 @@ TEST_F(UiFixture, CodeModeOpensWithOneClickAndCompletesWithoutAServer)
     ASSERT_NE(focused, nullptr);
     editor->gotoLine(2);
     QTest::keyClicks(focused, QStringLiteral("pri"));
-    settle();
-    EXPECT_TRUE(editor->completionListVisible());
+    EXPECT_TRUE(waitFor([&] { return editor->completionListVisible(); }, 5000));
     capture(*window_, QStringLiteral("code-word-completion"));
     QTest::keyClick(focused, Qt::Key_Escape);
     QTest::keyClicks(focused, QStringLiteral("nt("));
